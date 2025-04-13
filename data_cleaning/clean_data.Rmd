@@ -1,0 +1,122 @@
+---
+title: "clean_data"
+output: html_document
+date: "2025-04-10"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Cài đặc các thư viện cần thiết
+
+```{r}
+library(dplyr)
+library(tidyr)
+library(stringr)
+```
+
+# Đọc dữ liệu
+
+```{r}
+data <- read.csv("../data_set/Life Expectancy Data.csv")
+```
+
+# Tổng quan về dataset
+-Hiển thị tổng quan về số dòng, cột
+-Dùng hàm knitr::kable() trong R Markdown để tạo bảng hiển thị kiểu dữ liệu của từng cột, số lượng dữ liệu NA trong từng cột của dataset
+
+```{r}
+cat("Số dòng:", nrow(data), "\n")
+cat("Số cột:", ncol(data), "\n")
+
+# Kiểu dữ liệu của từng cột
+data_types <- sapply(data, class)
+data_types_df_1 <- data.frame(Column = names(data_types), Type = unname(data_types))
+knitr::kable(data_types_df_1, caption = "Kiểu dữ liệu của từng cột")
+
+# Đếm số lượng NA theo từng cột
+na_counts <- colSums(is.na(data))
+na_df <- data.frame(Column = names(na_counts), NA_Count = na_counts)
+
+knitr::kable(na_df, caption = "Số lượng giá trị NA theo từng cột")
+```
+
+# Chuẩn hóa dataframe
+-Chuẩn hóa tên các cột cho đồng nhất (viết hoa toàn bộ)
+-Chuẩn hóa cột country bằng cách thay " " -> "_" giữa tên quốc gia
+-Chuyển đổi cột STATUS thành 2 cột biến giả DEVELOPED và DEVELOPING tạo điều kiện thuận lợi cho việc chạy mô hình hồi quy (Vì mô hình hồi quy không hiểu kiểu dữ liệu chuỗi ở cột STATUS)
+-Loại bỏ những cột không ảnh hưởng đến yếu tố phân tích 
+
+```{r}
+# Chuẩn hóa tên các cột cho đồng nhất
+colnames(data) <- toupper(colnames(data))
+
+# Chuẩn hóa tên các quốc gia
+data <- data %>%
+  mutate(COUNTRY = str_replace_all(COUNTRY, " ", "_"))
+
+# Tạo biến giả
+data_dummy <- model.matrix(~ STATUS - 1, data = data)
+
+# ĐỔi tên cột biến giả để hiển thị được rõ hơn
+colnames(data_dummy) <- c("DEVELOPED", "DEVELOPING")
+
+# Kết hợp dữ liệu gốc với các cột biến giả
+data_combined <- cbind(data, data_dummy)
+
+# Loại bỏ những cột không ảnh hưởng trực tiếp, không có tác động nhiều đến yếu tố cần phân tích (yếu tố tuổi thọ trung bình)
+data_delete <- data_combined %>% 
+  select(-c(SCHOOLING, INCOME.COMPOSITION.OF.RESOURCES, POPULATION, PERCENTAGE.EXPENDITURE, STATUS))
+
+# Xem tên các cột sau chuẩn hóa
+colnames(data_delete)
+```
+
+# Xử lý dữ liệu thiếu (NA) theo từng quốc gia
+
+```{r}
+data_grouped <- data_combined %>%
+  group_by(COUNTRY) %>%
+  mutate(across(where(is.numeric), ~ ifelse(is.na(.), median(.x, na.rm = TRUE), .x))) %>%
+  ungroup()
+```
+
+# Loại bỏ các dòng có dữ liệu thiếu (NA) còn lại
+
+```{r}
+data_cleaned <- data_grouped %>%
+  drop_na()
+```
+
+# Xóa outlier 
+
+```{r}
+# Xoá những dòng có BMI bất thường
+data_cleaned <- data_cleaned[!(data_cleaned$BMI < 10 | data_cleaned$BMI > 60), ]
+```
+
+# Tổng quan về dataframe sau clean
+
+```{r}
+cat("Số dòng:", nrow(data_cleaned), "\n")
+cat("Số cột:", ncol(data_cleaned), "\n")
+
+# Kiểu dữ liệu của từng cột
+data_types_cleaned <- sapply(data_cleaned, class)
+data_types_df_cleaned <- data.frame(Column = names(data_types_cleaned), Type = unname(data_types_cleaned))
+knitr::kable(data_types_df_cleaned, caption = "Kiểu dữ liệu của từng cột")
+
+# Đếm số lượng NA theo từng cột
+na_counts <- colSums(is.na(data_cleaned))
+na_df <- data.frame(Column = names(na_counts), NA_Count = na_counts)
+
+knitr::kable(na_df, caption = "Số lượng giá trị NA theo từng cột")
+```
+
+# Xuấ file sau khi clean
+
+```{r}
+write.csv(data_cleaned, "../data_set/data_cleaned.csv", row.names = FALSE)
+print("Đã xuất file clean")
+```

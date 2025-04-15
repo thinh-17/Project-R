@@ -1,0 +1,57 @@
+---
+title: "Select independent variable"
+output: html_document
+date: "2025-04-10"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+# Đọc dữ liệu đã làm sạch
+```{r}
+
+library(dplyr)
+library(ggcorrplot)     # Vẽ ma trận tương quan
+library(ggplot2)
+library(car)            # Tính VIF
+library(corrplot)       # Vẽ biểu đồ tương quan
+
+data_cleaned <- read.csv("../data_set/data_cleaned.csv")
+```
+# chọn biến dựa trên cơ sở lý thuyết trước đó (đọc và nghiên cứu file csv hoặc tìm hiểu các nghiên cứu tương tự) đi đến chọn biến và đem đi kiểm định bằng phương pháp sử dụng ma trận tương quan để kiểm tra
+```{r}
+# Lựa chọn các biến có tương quan tốt và không đa cộng tuyến cao
+selected_data <- data_cleaned %>%
+  select(LIFE.EXPECTANCY, INCOME.COMPOSITION.OF.RESOURCES, ADULT.MORTALITY, INFANT.DEATHS, BMI,PERCENTAGE.EXPENDITURE,TOTAL.EXPENDITURE, SCHOOLING)
+```
+
+
+
+```{r}
+#Tính và vẽ ma trận tương quan
+cor_matrix <- cor(selected_data, use = "complete.obs")
+
+ggcorrplot(
+  cor_matrix,
+  hc.order = FALSE,  # Tắt sắp xếp phân cụm để giữ nguyên thứ tự biến
+  type = "full",     # Hiển thị toàn bộ ma trận (không chỉ nửa dưới)
+  lab = TRUE,
+  lab_size = 3,
+  tl.cex = 8,        # Tăng kích thước chữ tên biến
+  tl.srt = 45,       # Xoay tên biến 45 độ
+  title = "Ma trận tương quan giữa các biến",
+) +
+  theme(
+    axis.text.x = element_text(size = 8, angle = 45, hjust = 1),
+    axis.text.y = element_text(size = 8)
+  )
+```
+-Chọn biến có tương quan mạnh với biến phụ thuộc (Life.expectancy).
+-Loại bỏ biến độc lập quá tương quan với nhau (đa cộng tuyến).
+-Biến phụ thuộc: Chọn biến có |r| > 0.3–0.5 với Life.expectancy.
+-Biến độc lập: Nếu 2 biến có |r| > 0.7–0.8 với nhau → Chỉ giữ 1.
+
+
+
+
+

@@ -120,3 +120,4 @@ knitr::kable(na_df, caption = "Số lượng giá trị NA theo từng cột")
 write.csv(data_cleaned, "../data_set/data_cleaned.csv", row.names = FALSE)
 print("Đã xuất file clean")
 ```
+

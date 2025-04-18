@@ -7,25 +7,29 @@ date: "2025-04-10"
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
-# Đọc dữ liệu đã làm sạch
-```{r}
 
+# Đọc dữ liệu đã làm sạch
+
+```{r}
+library(broom)
+library(knitr)
+library(broom)
+library(knitr)
 library(dplyr)
 library(ggcorrplot)     # Vẽ ma trận tương quan
 library(ggplot2)
 library(car)            # Tính VIF
 library(corrplot)       # Vẽ biểu đồ tương quan
-
 data_cleaned <- read.csv("../data_set/data_cleaned.csv")
 ```
+
 # chọn biến dựa trên cơ sở lý thuyết trước đó (đọc và nghiên cứu file csv hoặc tìm hiểu các nghiên cứu tương tự) đi đến chọn biến và đem đi kiểm định bằng phương pháp sử dụng ma trận tương quan để kiểm tra
+
 ```{r}
 # Lựa chọn các biến có tương quan tốt và không đa cộng tuyến cao
 selected_data <- data_cleaned %>%
   select(LIFE.EXPECTANCY, INCOME.COMPOSITION.OF.RESOURCES, ADULT.MORTALITY, INFANT.DEATHS, BMI,PERCENTAGE.EXPENDITURE,TOTAL.EXPENDITURE, SCHOOLING)
 ```
-
-
 
 ```{r}
 #Tính và vẽ ma trận tương quan
@@ -46,12 +50,91 @@ ggcorrplot(
     axis.text.y = element_text(size = 8)
   )
 ```
--Chọn biến có tương quan mạnh với biến phụ thuộc (Life.expectancy).
--Loại bỏ biến độc lập quá tương quan với nhau (đa cộng tuyến).
--Biến phụ thuộc: Chọn biến có |r| > 0.3–0.5 với Life.expectancy.
--Biến độc lập: Nếu 2 biến có |r| > 0.7–0.8 với nhau → Chỉ giữ 1.
 
+# -------------------------------------------------------------------
 
+# \>\>\>\>\> XÂY DỰNG CÁC MÔ HÌNH \<\<\<\<\<
 
+> > final đã rồi t ghi document sau
 
+# MÔ HÌNH 1
+
+```{r}
+model1 <- lm(LIFE.EXPECTANCY ~ INCOME.COMPOSITION.OF.RESOURCES + ADULT.MORTALITY + SCHOOLING + PERCENTAGE.EXPENDITURE, data = selected_data)
+```
+
+> > Target: Dự đoán tuổi thọ dựa trên các yếu tố kionh tế, y tế và giáo dục
+
+# MÔ HÌNH 2
+
+```{r}
+
+model2 <- lm(LIFE.EXPECTANCY ~ INCOME.COMPOSITION.OF.RESOURCES * SCHOOLING + ADULT.MORTALITY,
+  data = selected_data)
+
+```
+
+> > Income.composition.of.resources \* Schooling: ý nghĩa giáo dục cao -\> có thể tác động đến khoảng thu nhập -\> khoảng thu nhập cao -\> chất lượng cuộc sống tốt -\> ảnh hưởng đến tuổi thọ
+
+# MÔ HÌNH 3
+
+> > Lasso
+
+```{r}
+
+```
+
+------------------------------------------------------------------------
+
+# KẾT QUẢ
+```{r}
+# Hàm in kết quả
+print_results <- function(model, model_name = "Mô hình") {
+  # Hệ số
+  cat("\n", paste0("=== ", model_name, " ==="), "\n")
+  
+  coef_table <- tidy(model) %>%
+  mutate(
+    significance = ifelse(p.value < 0.001, "***", 
+                          ifelse(p.value < 0.01, "**", 
+                                 ifelse(p.value < 0.05, "*", "NS"))) # Thêm "NS" cho không có ý nghĩa thống kê
+  )
+
+  
+  # Đổi tên cột có thể ngắt dòng (HTML cần escape = FALSE)
+  colnames(coef_table) <- c(
+    "Biến<br>(term)", 
+    "Ước lượng<br>(estimate)", 
+    "Sai số<br>(std.error)", 
+    "Giá trị t<br>(statistic)", 
+    "Giá trị p<br>(p.value)", 
+    "Ý nghĩa<br>thống kê"
+  )
+    # In bảng đẹp
+  print(kable(coef_table, digits = 3, caption = "📌 Hệ số hồi quy"))
+  
+  # Model summary
+  model_summary <- glance(model) %>%
+  select(r.squared, adj.r.squared, sigma, statistic, p.value, nobs)
+  colnames(model_summary) <- c("R²", "R² hiệu chỉnh", "Sai số", "F", "p-value", "N")
+  print(kable(model_summary, digits = 3, caption = "Chỉ số tổng quan"))
+  
+  # VIF (không áp dụng cho model có interaction nếu chưa chuẩn hóa) (MODEL 2)
+  if (!any(grepl(":", names(coef(model))))) { # Check interaction terms
+    vif_values <- car::vif(model)
+    print(kable(data.frame(VIF = vif_values), digits = 1, caption = "Kiểm tra VIF"))
+  }
+}
+
+```
+
+```{r}
+
+print_results(model1)
+
+```
+
+```{r}
+print_results(model2)
+```
 

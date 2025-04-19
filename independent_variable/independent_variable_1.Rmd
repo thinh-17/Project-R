@@ -28,7 +28,7 @@ data_cleaned <- read.csv("../data_set/data_cleaned.csv")
 ```{r}
 # Lựa chọn các biến có tương quan tốt và không đa cộng tuyến cao
 selected_data <- data_cleaned %>%
-  select(LIFE.EXPECTANCY, INCOME.COMPOSITION.OF.RESOURCES, ADULT.MORTALITY, INFANT.DEATHS, BMI,PERCENTAGE.EXPENDITURE,TOTAL.EXPENDITURE, SCHOOLING)
+  select(LIFE.EXPECTANCY, INCOME.COMPOSITION.OF.RESOURCES, ADULT.MORTALITY, BMI,PERCENTAGE.EXPENDITURE,TOTAL.EXPENDITURE, SCHOOLING)
 ```
 
 ```{r}
@@ -111,7 +111,7 @@ print_results <- function(model, model_name = "Mô hình") {
     "Ý nghĩa<br>thống kê"
   )
     # In bảng đẹp
-  print(kable(coef_table, digits = 3, caption = "📌 Hệ số hồi quy"))
+  print(kable(coef_table, digits = 3, caption = "Hệ số hồi quy"))
   
   # Model summary
   model_summary <- glance(model) %>%

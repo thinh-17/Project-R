@@ -30,7 +30,21 @@ library(dplyr)
 ```
 
 
+<<<<<<< HEAD
 >>> Mô hình 1
+=======
+>>> MÔ TẢ: Mô hình cơ bản về kinh tế, y tế và giáo dục  
+
+INCOME.COMPOSITION.OF.RESOURCES: Chỉ số thu nhập và tiếp cận tài nguyên → Phản ánh chất lượng cuộc sống.
+
+ADULT.MORTALITY: Tỷ lệ tử vong người lớn → Đại diện  cho hệ thống y tế và dịch vụ chăm sóc sức khỏe.
+
+SCHOOLING: Số năm đi học → Đại diện cho giáo dục và nhận thức về sức khỏe.
+
+PERCENTAGE.EXPENDITURE: Chi tiêu y tế (% GDP) → Đầu tư vào y tế công.
+
+## MÔ HÌNH 2
+>>>>>>> b75351c93c7ffbd93ef82c403012330a9b2b11c6
 
 ```{r}
 # Bước 1: Tách train/test
@@ -39,9 +53,66 @@ splitIndex <- createDataPartition(selected_data$LIFE.EXPECTANCY, p = 0.8, list =
 train_data <- selected_data[splitIndex, ]
 test_data <- selected_data[-splitIndex, ]
 
+<<<<<<< HEAD
 # Bước 2: Chuẩn hóa dữ liệu (normalize [0,1])
 normalize <- function(x) {
   return((x - min(x)) / (max(x) - min(x)))
+=======
+model2 <- lm(LIFE.EXPECTANCY ~ INCOME.COMPOSITION.OF.RESOURCES * SCHOOLING + ADULT.MORTALITY,
+  data = selected_data)
+
+```
+
+INCOME * SCHOOLING: Kiểm tra xem giáo dục có làm tăng tác động của thu nhập lên tuổi thọ hay không.
+
+Ví dụ: Ở các nước có giáo dục tốt, thu nhập cao có thể cải thiện tuổi thọ mạnh hơn.
+
+## MÔ HÌNH 3
+```{r}
+model3 <- lm(LIFE.EXPECTANCY ~ ADULT.MORTALITY + BMI + TOTAL.EXPENDITURE + SCHOOLING, data = selected_data)
+```
+
+BMI: Chỉ số khối cơ thể → Phản ánh tình trạng dinh dưỡng (thiếu hoặc thừa cân).
+>>> model này so sánh với model 1: nếu r^2 thấp hơn thì có thể yto kinh tế quan trọng hơn dinh dưỡng
+
+```{r}
+# Hàm in kết quả
+print_results <- function(model, model_name = "Mô hình") {
+  # Hệ số
+  cat("\n", paste0("=== ", model_name, " ==="), "\n")
+  
+  coef_table <- tidy(model) %>%
+  mutate(
+    significance = ifelse(p.value < 0.001, "***", 
+                          ifelse(p.value < 0.01, "**", 
+                                 ifelse(p.value < 0.05, "*", "NS"))) # Thêm "NS" cho không có ý nghĩa thống kê
+  )
+
+  
+  # Đổi tên cột có thể ngắt dòng (HTML cần escape = FALSE)
+  colnames(coef_table) <- c(
+    "Biến<br>(term)", 
+    "Ước lượng<br>(estimate)", 
+    "Sai số<br>(std.error)", 
+    "Giá trị t<br>(statistic)", 
+    "Giá trị p<br>(p.value)", 
+    "Ý nghĩa<br>thống kê"
+  )
+    # In bảng đẹp
+  print(kable(coef_table, digits = 3, caption = "Hệ số hồi quy"))
+  
+  # Model summary
+  model_summary <- glance(model) %>%
+  select(r.squared, adj.r.squared, sigma, statistic, p.value, nobs)
+  colnames(model_summary) <- c("R²", "R² hiệu chỉnh", "Sai số", "F", "p-value", "N")
+  print(kable(model_summary, digits = 3, caption = "Chỉ số tổng quan"))
+  
+  # VIF (không áp dụng cho model có interaction nếu chưa chuẩn hóa) (MODEL 2)
+  if (!any(grepl(":", names(coef(model))))) { # Check interaction terms
+    vif_values <- car::vif(model)
+    print(kable(data.frame(VIF = vif_values), digits = 1, caption = "Kiểm tra VIF"))
+  }
+>>>>>>> b75351c93c7ffbd93ef82c403012330a9b2b11c6
 }
 
 train_data_norm <- as.data.frame(lapply(train_data, normalize))

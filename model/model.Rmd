@@ -18,82 +18,75 @@ summary(cars)
 >>> Thư viện 
 
 ```{r pressure, echo=FALSE}
+install.packages("e1071")
+library(e1071)
+library(randomForest)
 library(dplyr)
 library(knitr)
 library(broom)
+library(neuralnet)
+library(caret)
+library(dplyr)
 ```
 
-## MÔ HÌNH 1
-```{r}
-model1 <- lm(LIFE.EXPECTANCY ~ INCOME.COMPOSITION.OF.RESOURCES + ADULT.MORTALITY + SCHOOLING + PERCENTAGE.EXPENDITURE, data = selected_data)
-```
 
-## MÔ HÌNH 2
+>>> Mô hình 1
 
 ```{r}
+# Bước 1: Tách train/test
+set.seed(123)
+splitIndex <- createDataPartition(selected_data$LIFE.EXPECTANCY, p = 0.8, list = FALSE)
+train_data <- selected_data[splitIndex, ]
+test_data <- selected_data[-splitIndex, ]
 
-model2 <- lm(LIFE.EXPECTANCY ~ INCOME.COMPOSITION.OF.RESOURCES * SCHOOLING + ADULT.MORTALITY,
-  data = selected_data)
-
-```
-
-## MÔ HÌNH 3
-```{r}
-model3 <- lm(LIFE.EXPECTANCY ~ ADULT.MORTALITY + BMI + TOTAL.EXPENDITURE + SCHOOLING, data = selected_data)
-```
-
-```{r}
-# Hàm in kết quả
-print_results <- function(model, model_name = "Mô hình") {
-  # Hệ số
-  cat("\n", paste0("=== ", model_name, " ==="), "\n")
-  
-  coef_table <- tidy(model) %>%
-  mutate(
-    significance = ifelse(p.value < 0.001, "***", 
-                          ifelse(p.value < 0.01, "**", 
-                                 ifelse(p.value < 0.05, "*", "NS"))) # Thêm "NS" cho không có ý nghĩa thống kê
-  )
-
-  
-  # Đổi tên cột có thể ngắt dòng (HTML cần escape = FALSE)
-  colnames(coef_table) <- c(
-    "Biến<br>(term)", 
-    "Ước lượng<br>(estimate)", 
-    "Sai số<br>(std.error)", 
-    "Giá trị t<br>(statistic)", 
-    "Giá trị p<br>(p.value)", 
-    "Ý nghĩa<br>thống kê"
-  )
-    # In bảng đẹp
-  print(kable(coef_table, digits = 3, caption = "Hệ số hồi quy"))
-  
-  # Model summary
-  model_summary <- glance(model) %>%
-  select(r.squared, adj.r.squared, sigma, statistic, p.value, nobs)
-  colnames(model_summary) <- c("R²", "R² hiệu chỉnh", "Sai số", "F", "p-value", "N")
-  print(kable(model_summary, digits = 3, caption = "Chỉ số tổng quan"))
-  
-  # VIF (không áp dụng cho model có interaction nếu chưa chuẩn hóa) (MODEL 2)
-  if (!any(grepl(":", names(coef(model))))) { # Check interaction terms
-    vif_values <- car::vif(model)
-    print(kable(data.frame(VIF = vif_values), digits = 1, caption = "Kiểm tra VIF"))
-  }
+# Bước 2: Chuẩn hóa dữ liệu (normalize [0,1])
+normalize <- function(x) {
+  return((x - min(x)) / (max(x) - min(x)))
 }
 
+train_data_norm <- as.data.frame(lapply(train_data, normalize))
+test_data_norm <- as.data.frame(lapply(test_data, normalize))
+
+# Bước 3: Xây dựng công thức hồi quy
+formula_lm <- LIFE.EXPECTANCY ~ INCOME.COMPOSITION.OF.RESOURCES + ADULT.MORTALITY + BMI + PERCENTAGE.EXPENDITURE + TOTAL.EXPENDITURE + SCHOOLING
+
+# Bước 4: Huấn luyện mô hình hồi quy
+model_lm <- lm(formula_lm, data = train_data_norm)
+
+# Bước 5: In thông số mô hình
+summary(model_lm)
+
 ```
+>>>   Mô hình Random Forest Regression
 
 ```{r}
+# Bước 1: Huấn luyện mô hình Random Forest
+set.seed(123)
+model_rf <- randomForest(
+  formula_lm, 
+  data = train_data_norm,
+  ntree = 500,              # Số lượng cây
+  importance = TRUE         # Cho phép tính tầm quan trọng biến
+)
 
-print_results(model1)
-
+# Bước 2: In thông số mô hình
+print(model_rf)
+importance(model_rf)        # Xem mức độ quan trọng của các biến
 ```
+>>> Support Vector Regression (SVR)
 
 ```{r}
-print_results(model2)
-```
+# Cài thư viện nếu chưa có
+library(e1071)
 
-```{r}
-print_results(model3)
-```
+# Bước 1: Huấn luyện mô hình SVR
+set.seed(123)
+model_svr <- svm(
+  formula_lm,
+  data = train_data_norm,
+  type = "eps-regression",    # Hồi quy epsilon
+  kernel = "radial"           # Kernel RBF (phi tuyến)
+)
 
+# Bước 2: In thông số mô hình
+print(model_svr)

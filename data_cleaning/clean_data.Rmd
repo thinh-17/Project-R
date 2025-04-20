@@ -23,6 +23,36 @@ data <- read.csv("../data_set/Life Expectancy Data.csv")
 ```
 
 # Tổng quan về dataset
+--------------------------------------------------------------------------------------------------------------------
+Cột Country                - Mô tả tên quốc gia                                       -
+Cột Year                   - Mô tả năm mà dữ liệu được thu thập                       - 
+Cột Status                 - Mô tả tình trạng phát triển của quốc gia                 - 
+Cột Life expectancy        - Mô tả tuổi thọ trung bình                                - Đơn vị: Năm
+Cột Adult Mortality        - Mô tả tỷ lệ tử vong của người từ (15-60) trên 1000 người - Đơn vị: người/ 1000 người
+Cột infant deaths          - Mô tả tỷ lệ tử vong của trẻ sơ sinh trên 1000 trẻ        - Đơn vị: người/ 1000 người
+Cột Alcohol                - Mô tả mức tiêu thụ rượu theo bình quân đầu người         - Đơn vị: lít/ người
+Cột percentage expenditure - Mô tả chi tiêu cho y tế theo tỷ lệ phần trăm tổng        - Đơn vị: %
+                             sản phẩm quốc nội bình quân đầu người
+Cột Hepatitis B            - Mô tả tỷ lệ tiêm chủng viêm gan B (HepB) ở trẻ 1 tuổi    - Đơn vị: %
+Cột Measles                - Mô tả số ca bệnh sởi được báo cáo trên 1000 dân          - Đơn vị: số ca/ 1000 người
+Cột BMI                    - Mô tả chỉ số khối cơ thể trung binh của quốc gia         - 
+Cột under-five deaths      - Mô tả số ca tử vong dưới 5 tuổi trên 1000 dân            - Đơn vị: người/ 1000 người
+Cột Polio                  - Mô tả tỷ lệ tiêm chủng bại liệt ở trẻ 1 tuổi             - Đơn vị: %
+Cột Total expenditure      - Mô tả tổng chi tiêu của chính phủ cho y tế tính theo tỷ  - Đơn vị: %
+                             lệ phần trăm tổng chi tiêu của chính phủ
+Cột Diphtheria             - Mô tả tỷ lệ tiêm chủng vắc-xin bạch hầu, uốn ván và ho   - Đơn vị: %
+                             gà ở trẻ 1 tuổi
+Cột HIV/AIDS               - Mô tả số ca tử vong trên 1000 ca sinh sống (0 - 4 năm)   - Đơn vị: %
+Cột GDP                    - Mô tả tổng sản phẩm quốc nội bình quân đầu người         - Đơn vị: USD/ người
+Cột Population             - Mô tả dân số của 1 quốc gia                              - Đơn vị: Người
+Cột thinness 1-19 years    - Mô tả tỷ lệ gầy ở trẻ em và thanh thiếu niên từ 10 đến   - Đơn vị: %
+                             19 tuổi
+Cột thinness 5-9 years     - Mô tả tỷ lệ gầy ở trẻ em từ 5 đến 9 tuổi                 - Đơn vị: %
+Cột Income composition     - Mô tả chỉ số phát triển con người theo thành phần thu    -
+    of resresources          nhập của các nguồn lực (chỉ số từ 0 đến 1)
+Cột Schooling              - Mô tả số năm đi học                                      - Đơn vị: năm                               
+--------------------------------------------------------------------------------------------------------------------
+
 -Hiển thị tổng quan về số dòng, cột
 -Dùng hàm knitr::kable() trong R Markdown để tạo bảng hiển thị kiểu dữ liệu của từng cột, số lượng dữ liệu NA trong từng cột của dataset
 
@@ -40,6 +70,16 @@ na_counts <- colSums(is.na(data))
 na_df <- data.frame(Column = names(na_counts), NA_Count = na_counts)
 
 knitr::kable(na_df, caption = "Số lượng giá trị NA theo từng cột")
+
+# Tạo bảng tổng quan cho từng cột
+overview <- data.frame(
+  Column = names(data),
+  Min = sapply(data, function(x) if(is.numeric(x)) min(x, na.rm = TRUE) else NA),
+  Max = sapply(data, function(x) if(is.numeric(x)) max(x, na.rm = TRUE) else NA),
+  Mean = sapply(data, function(x) if(is.numeric(x)) mean(x, na.rm = TRUE) else NA)
+)
+
+knitr::kable(overview, caption = "Tổng quan từng cột trong dữ liệu")
 ```
 
 # Chuẩn hóa dataframe
@@ -67,7 +107,7 @@ data_combined <- cbind(data, data_dummy)
 
 # Loại bỏ những cột không ảnh hưởng trực tiếp, không có tác động nhiều đến yếu tố cần phân tích (yếu tố tuổi thọ trung bình)
 data_delete <- data_combined %>% 
-  select(-c(SCHOOLING, INCOME.COMPOSITION.OF.RESOURCES, POPULATION, PERCENTAGE.EXPENDITURE, STATUS))
+  select(-c(INFANT.DEATHS, UNDER.FIVE.DEATHS, HIV.AIDS, STATUS))
 
 # Xem tên các cột sau chuẩn hóa
 colnames(data_delete)
@@ -76,7 +116,7 @@ colnames(data_delete)
 # Xử lý dữ liệu thiếu (NA) theo từng quốc gia
 
 ```{r}
-data_cleaned <- data_delete %>%
+data_grouped <- data_delete %>%
   group_by(COUNTRY) %>%
   mutate(across(where(is.numeric), ~ ifelse(is.na(.), median(.x, na.rm = TRUE), .x))) %>%
   ungroup()
@@ -96,6 +136,69 @@ data_cleaned <- data_grouped %>%
 data_cleaned <- data_cleaned[!(data_cleaned$BMI < 10 | data_cleaned$BMI > 60), ]
 ```
 
+# Kiểm outlier
+-Xem mối quan hệ giữa biến X và biến Y, đồng thời phát hiện điểm bất thường.
+-Giúp phát hiện outlier mang tính "quan hệ" giữa các biến (điều quan trọng để tạo thuận lợi cho việc phân tích hồi quy)
+
+```{r}
+for (col in colnames(data_cleaned)[-1]) {  # Bỏ cột LIFE.EXPECTANCY
+  values <- data_cleaned[[col]]
+  y <- data_cleaned$LIFE.EXPECTANCY
+  
+  # Tính IQR cho biến X
+  Q1 <- quantile(values, 0.25, na.rm = TRUE)
+  Q3 <- quantile(values, 0.75, na.rm = TRUE)
+  IQR <- Q3 - Q1
+  lower <- Q1 - 1.5 * IQR
+  upper <- Q3 + 1.5 * IQR
+  
+  # Xác định outlier theo biến X
+  is_outlier <- values < lower | values > upper
+  
+  # Vẽ scatter plot: X vs LIFE.EXPECTANCY
+  plot(values, y,
+       main = paste("LIFE.EXPECTANCY vs", col),
+       xlab = col,
+       ylab = "LIFE.EXPECTANCY",
+       pch = 19,
+       col = ifelse(is_outlier, "red", "black"))
+}
+```
+
+# Xử lý outlier
+
+```{r}
+for (col in colnames(data_cleaned)[-1]) {  # Bỏ cột LIFE.EXPECTANCY
+  values <- data_cleaned[[col]]
+  y <- data_cleaned$LIFE.EXPECTANCY
+  
+  # Tính IQR cho biến X
+  Q1 <- quantile(values, 0.25, na.rm = TRUE)
+  Q3 <- quantile(values, 0.75, na.rm = TRUE)
+  IQR <- Q3 - Q1
+  lower <- Q1 - 1.5 * IQR
+  upper <- Q3 + 1.5 * IQR
+  
+  # Xác định outlier theo biến X
+  is_outlier <- values < lower | values > upper
+  
+  # Thay thế outlier bằng giá trị trung bình (mean)
+  values[is_outlier] <- median(values[!is_outlier], na.rm = TRUE)
+  
+  # Gán ngược lại vào data_cleaned
+  data_cleaned[[col]] <- values
+  
+  # Vẽ scatter plot: X vs LIFE.EXPECTANCY
+  plot(values, y,
+       main = paste("LIFE.EXPECTANCY vs", col),
+       xlab = col,
+       ylab = "LIFE.EXPECTANCY",
+       pch = 19,
+       col = ifelse(is_outlier, "red", "black"))
+}
+
+```
+
 # Tổng quan về dataframe sau clean
 
 ```{r}
@@ -112,6 +215,15 @@ na_counts <- colSums(is.na(data_cleaned))
 na_df <- data.frame(Column = names(na_counts), NA_Count = na_counts)
 
 knitr::kable(na_df, caption = "Số lượng giá trị NA theo từng cột")
+# Tạo bảng tổng quan cho từng cột
+overview <- data.frame(
+  Column = names(data_cleaned),
+  Min = sapply(data_cleaned, function(x) if(is.numeric(x)) min(x, na.rm = TRUE) else NA),
+  Max = sapply(data_cleaned, function(x) if(is.numeric(x)) max(x, na.rm = TRUE) else NA),
+  Mean = sapply(data_cleaned, function(x) if(is.numeric(x)) mean(x, na.rm = TRUE) else NA)
+)
+
+knitr::kable(overview, caption = "Tổng quan từng cột trong dữ liệu")
 ```
 
 # Xuấ file sau khi clean
@@ -120,3 +232,4 @@ knitr::kable(na_df, caption = "Số lượng giá trị NA theo từng cột")
 write.csv(data_cleaned, "../data_set/data_cleaned.csv", row.names = FALSE)
 print("Đã xuất file clean")
 ```
+

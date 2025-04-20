@@ -50,7 +50,13 @@ ggcorrplot(
     axis.text.y = element_text(size = 8)
   )
 ```
-
+từ ma trận tương quan
+-Chọn biến có tương quan mạnh với biến phụ thuộc (Life.expectancy).
+-Loại bỏ biến độc lập quá tương quan với nhau (đa cộng tuyến).
+-Biến phụ thuộc: Chọn biến có |r| > 0.3–0.5 với Life.expectancy.
+-Biến độc lập: Nếu 2 biến có |r| > 0.7–0.8 với nhau → Chỉ giữ 1.
+# loại biến TOTAL.EXPENDITURE vì ít tương quan đến Life.expectancy
+#biến SCHOOLING và biến INCOME.COMPOSITION.OF.RESOURCES không xét chung model
 # -------------------------------------------------------------------
 
 # \>\>\>\>\> XÂY DỰNG CÁC MÔ HÌNH \<\<\<\<\<
@@ -60,7 +66,7 @@ ggcorrplot(
 # MÔ HÌNH 1
 
 ```{r}
-model1 <- lm(LIFE.EXPECTANCY ~ INCOME.COMPOSITION.OF.RESOURCES + ADULT.MORTALITY + SCHOOLING + PERCENTAGE.EXPENDITURE, data = selected_data)
+model1 <- lm(LIFE.EXPECTANCY ~ INCOME.COMPOSITION.OF.RESOURCES + ADULT.MORTALITY + PERCENTAGE.EXPENDITURE, data = selected_data)
 ```
 
 > > Target: Dự đoán tuổi thọ dựa trên các yếu tố kionh tế, y tế và giáo dục
@@ -81,8 +87,9 @@ model2 <- lm(LIFE.EXPECTANCY ~ INCOME.COMPOSITION.OF.RESOURCES * SCHOOLING + ADU
 > > Lasso
 
 ```{r}
-
+model3 <- lm(LIFE.EXPECTANCY ~ ADULT.MORTALITY + BMI + SCHOOLING, data = selected_data)
 ```
+
 
 ------------------------------------------------------------------------
 
@@ -137,4 +144,22 @@ print_results(model1)
 ```{r}
 print_results(model2)
 ```
+
+```{r}
+print_results(model3)
+```
+# kiểm định tự tương quan bậc 1 bỏ qua
+# kiểm tra đa cộng tuyến VIF
+VIF ≈ 1
+1 < VIF < 5
+5 ≤ VIF < 10
+VIF ≥ 10
+model1 
+model2
+model3
+#kiểm định
+```{r}
+
+```
+
 

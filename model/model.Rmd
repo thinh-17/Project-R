@@ -28,6 +28,16 @@ library(broom)
 model1 <- lm(LIFE.EXPECTANCY ~ INCOME.COMPOSITION.OF.RESOURCES + ADULT.MORTALITY + SCHOOLING + PERCENTAGE.EXPENDITURE, data = selected_data)
 ```
 
+>>> MÔ TẢ: Mô hình cơ bản về kinh tế, y tế và giáo dục  
+
+INCOME.COMPOSITION.OF.RESOURCES: Chỉ số thu nhập và tiếp cận tài nguyên → Phản ánh chất lượng cuộc sống.
+
+ADULT.MORTALITY: Tỷ lệ tử vong người lớn → Đại diện  cho hệ thống y tế và dịch vụ chăm sóc sức khỏe.
+
+SCHOOLING: Số năm đi học → Đại diện cho giáo dục và nhận thức về sức khỏe.
+
+PERCENTAGE.EXPENDITURE: Chi tiêu y tế (% GDP) → Đầu tư vào y tế công.
+
 ## MÔ HÌNH 2
 
 ```{r}
@@ -37,10 +47,17 @@ model2 <- lm(LIFE.EXPECTANCY ~ INCOME.COMPOSITION.OF.RESOURCES * SCHOOLING + ADU
 
 ```
 
+INCOME * SCHOOLING: Kiểm tra xem giáo dục có làm tăng tác động của thu nhập lên tuổi thọ hay không.
+
+Ví dụ: Ở các nước có giáo dục tốt, thu nhập cao có thể cải thiện tuổi thọ mạnh hơn.
+
 ## MÔ HÌNH 3
 ```{r}
 model3 <- lm(LIFE.EXPECTANCY ~ ADULT.MORTALITY + BMI + TOTAL.EXPENDITURE + SCHOOLING, data = selected_data)
 ```
+
+BMI: Chỉ số khối cơ thể → Phản ánh tình trạng dinh dưỡng (thiếu hoặc thừa cân).
+>>> model này so sánh với model 1: nếu r^2 thấp hơn thì có thể yto kinh tế quan trọng hơn dinh dưỡng
 
 ```{r}
 # Hàm in kết quả

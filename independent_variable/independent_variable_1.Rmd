@@ -63,15 +63,18 @@ từ ma trận tương quan
 
 > > final đã rồi t ghi document sau
 
-# MÔ HÌNH 1
+# MÔ HÌNH 1: Nói về kinh Tế - Y Tế
 
 ```{r}
 model1 <- lm(LIFE.EXPECTANCY ~ INCOME.COMPOSITION.OF.RESOURCES + ADULT.MORTALITY + PERCENTAGE.EXPENDITURE, data = selected_data)
 ```
 
-> > Target: Dự đoán tuổi thọ dựa trên các yếu tố kionh tế, y tế và giáo dục
+> > Target: Dự đoán tuổi thọ dựa trên các yếu tố  y tế, đầu tư của chính phủ vào y tế
+- INCOME.COMPOSITION.OF.RESOURCES cho thấy được thu nhập và chất lượng cuộc sống từ đó phản ánh khả năng tiếp cận dịch vụ y tế, giáo dục, dinh dưỡng.
+- ADULT.MORTALITYN, PERCENTAGE.EXPENDITURE cho thấy được mức tử vong của người trưởng thành và sựu đầu tư vào y tế cảu chính phủ 
+--> Từ đó, đưa ra được insight về vấn đề y tế --> cần cải thiện vấn đề về y tế để giảm thiểu mức độ tử vong
 
-# MÔ HÌNH 2
+# MÔ HÌNH 2: Sự tương tác giữa giáo dục và thu nhập
 
 ```{r}
 
@@ -81,17 +84,33 @@ model2 <- lm(LIFE.EXPECTANCY ~ INCOME.COMPOSITION.OF.RESOURCES * SCHOOLING + ADU
 ```
 
 > > Income.composition.of.resources \* Schooling: ý nghĩa giáo dục cao -\> có thể tác động đến khoảng thu nhập -\> khoảng thu nhập cao -\> chất lượng cuộc sống tốt -\> ảnh hưởng đến tuổi thọ
+- Kết hợp giữa giáo dục và thu nhập -> Dựa vào giáo dục mà đánh giá lên được cùng 1 mức thu nhập nhưng tuổi thọ lại khác nhau ở mỗi quốc gia 
+- Phát hiện ra được giáo dục giúp tăng được thu nhập -> có thể tăng được sức khỏe
 
-# MÔ HÌNH 3
-
-> > Lasso
+# MÔ HÌNH 3: Nói về y tế và dinh dưỡng 
 
 ```{r}
+# MÔ HÌNH 3
 model3 <- lm(LIFE.EXPECTANCY ~ ADULT.MORTALITY + BMI + SCHOOLING, data = selected_data)
 ```
+>>> Nói sâu về vấn đề sức khỏe, giáo dục ảnh hưởng đến nhận thức về sức khỏe, 
+- Tập trung vào chủ yếu là yếu tố sức khỏe trực tiếp:
++ BMI -> Nói lên được tình trạng dinh dưỡng (Từ lối sống lành mạnh hay không)
++ SHOOLING: tác động đến nhận thức vào hành vi sức khỏe 
++ ADULT.MORTALITY: Tỉ lệ tử vong của người lớn -> phản ánh lên được chất lượng hệ thống y tế
 
+# MÔ HÌNH 4: Khác biệt về giáo dục, chỉ số BMI ở các quốc gia
 
-------------------------------------------------------------------------
+```{r}
+model4 <- lm(LIFE.EXPECTANCY ~ 
+              SCHOOLING * COUNTRY + 
+              BMI * COUNTRY + 
+              ADULT.MORTALITY,
+            data = data_cleaned)
+```
+
+>>>  Phát hiện sự khác biệt của các quốc gia về hiệu quả cảu giáo dục lên tuổi thọ, tác động dinh dưỡng lên sức khỏe 
+-----------------------------------------------------------------------
 
 # KẾT QUẢ
 ```{r}
@@ -145,21 +164,18 @@ print_results(model1)
 print_results(model2)
 ```
 
+>>> KQua model 3
+
 ```{r}
 print_results(model3)
 ```
-# kiểm định tự tương quan bậc 1 bỏ qua
-# kiểm tra đa cộng tuyến VIF
-VIF ≈ 1
-1 < VIF < 5
-5 ≤ VIF < 10
-VIF ≥ 10
-model1 
-model2
-model3
-#kiểm định
 ```{r}
+print_results(model4)
+coef_df <- tidy(model4) %>%
+  filter(grepl("SCHOOLING:", term)) %>%
+  arrange(desc(estimate))
 
+head(coef_df, 10) 
 ```
 
 

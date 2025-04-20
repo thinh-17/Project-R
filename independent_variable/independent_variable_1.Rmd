@@ -11,7 +11,7 @@ knitr::opts_chunk$set(echo = TRUE)
 # Đọc dữ liệu đã làm sạch
 
 ```{r}
-library(broom)
+
 library(knitr)
 library(broom)
 library(knitr)

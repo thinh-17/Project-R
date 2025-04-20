@@ -9,22 +9,91 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## R Markdown
-
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
-
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+>>> Xây dựng các mô hình <<<
 
 ```{r cars}
 summary(cars)
 ```
 
-## Including Plots
-
-You can also embed plots, for example:
+>>> Thư viện 
 
 ```{r pressure, echo=FALSE}
-plot(pressure)
+library(dplyr)
+library(knitr)
+library(broom)
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+## MÔ HÌNH 1
+```{r}
+model1 <- lm(LIFE.EXPECTANCY ~ INCOME.COMPOSITION.OF.RESOURCES + ADULT.MORTALITY + SCHOOLING + PERCENTAGE.EXPENDITURE, data = selected_data)
+```
+
+## MÔ HÌNH 2
+
+```{r}
+
+model2 <- lm(LIFE.EXPECTANCY ~ INCOME.COMPOSITION.OF.RESOURCES * SCHOOLING + ADULT.MORTALITY,
+  data = selected_data)
+
+```
+
+## MÔ HÌNH 3
+```{r}
+model3 <- lm(LIFE.EXPECTANCY ~ ADULT.MORTALITY + BMI + TOTAL.EXPENDITURE + SCHOOLING, data = selected_data)
+```
+
+```{r}
+# Hàm in kết quả
+print_results <- function(model, model_name = "Mô hình") {
+  # Hệ số
+  cat("\n", paste0("=== ", model_name, " ==="), "\n")
+  
+  coef_table <- tidy(model) %>%
+  mutate(
+    significance = ifelse(p.value < 0.001, "***", 
+                          ifelse(p.value < 0.01, "**", 
+                                 ifelse(p.value < 0.05, "*", "NS"))) # Thêm "NS" cho không có ý nghĩa thống kê
+  )
+
+  
+  # Đổi tên cột có thể ngắt dòng (HTML cần escape = FALSE)
+  colnames(coef_table) <- c(
+    "Biến<br>(term)", 
+    "Ước lượng<br>(estimate)", 
+    "Sai số<br>(std.error)", 
+    "Giá trị t<br>(statistic)", 
+    "Giá trị p<br>(p.value)", 
+    "Ý nghĩa<br>thống kê"
+  )
+    # In bảng đẹp
+  print(kable(coef_table, digits = 3, caption = "Hệ số hồi quy"))
+  
+  # Model summary
+  model_summary <- glance(model) %>%
+  select(r.squared, adj.r.squared, sigma, statistic, p.value, nobs)
+  colnames(model_summary) <- c("R²", "R² hiệu chỉnh", "Sai số", "F", "p-value", "N")
+  print(kable(model_summary, digits = 3, caption = "Chỉ số tổng quan"))
+  
+  # VIF (không áp dụng cho model có interaction nếu chưa chuẩn hóa) (MODEL 2)
+  if (!any(grepl(":", names(coef(model))))) { # Check interaction terms
+    vif_values <- car::vif(model)
+    print(kable(data.frame(VIF = vif_values), digits = 1, caption = "Kiểm tra VIF"))
+  }
+}
+
+```
+
+```{r}
+
+print_results(model1)
+
+```
+
+```{r}
+print_results(model2)
+```
+
+```{r}
+print_results(model3)
+```
+

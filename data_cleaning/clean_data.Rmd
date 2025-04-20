@@ -76,7 +76,7 @@ colnames(data_delete)
 # Xử lý dữ liệu thiếu (NA) theo từng quốc gia
 
 ```{r}
-data_grouped <- data_combined %>%
+data_cleaned <- data_delete %>%
   group_by(COUNTRY) %>%
   mutate(across(where(is.numeric), ~ ifelse(is.na(.), median(.x, na.rm = TRUE), .x))) %>%
   ungroup()
@@ -120,4 +120,3 @@ knitr::kable(na_df, caption = "Số lượng giá trị NA theo từng cột")
 write.csv(data_cleaned, "../data_set/data_cleaned.csv", row.names = FALSE)
 print("Đã xuất file clean")
 ```
-

@@ -64,10 +64,11 @@ từ ma trận tương quan
 
 > > final đã rồi t ghi document sau
 
-# MÔ HÌNH 1: Nói về kinh Tế - Y Tế
+# MÔ HÌNH 1: Yếu tố kinh tế và y tế
 
 ```{r}
-model1 <- lm(LIFE.EXPECTANCY ~ INCOME.COMPOSITION.OF.RESOURCES + ADULT.MORTALITY + PERCENTAGE.EXPENDITURE, data = selected_data)
+model1 <- lm(LIFE.EXPECTANCY ~ INCOME.COMPOSITION.OF.RESOURCES + ADULT.MORTALITY, data = selected_data)
+
 ```
 
 > > Target: Dự đoán tuổi thọ dựa trên các yếu tố  y tế, đầu tư của chính phủ vào y tế
@@ -91,8 +92,7 @@ model2 <- lm(LIFE.EXPECTANCY ~ INCOME.COMPOSITION.OF.RESOURCES * SCHOOLING + ADU
 # MÔ HÌNH 3: Nói về y tế và dinh dưỡng 
 
 ```{r}
-# MÔ HÌNH 3
-model3 <- lm(LIFE.EXPECTANCY ~ ADULT.MORTALITY + BMI + SCHOOLING, data = selected_data)
+model3 <- lm(LIFE.EXPECTANCY ~ ADULT.MORTALITY + BMI, data = selected_data)
 ```
 >>> Nói sâu về vấn đề sức khỏe, giáo dục ảnh hưởng đến nhận thức về sức khỏe, 
 - Tập trung vào chủ yếu là yếu tố sức khỏe trực tiếp:
@@ -103,11 +103,15 @@ model3 <- lm(LIFE.EXPECTANCY ~ ADULT.MORTALITY + BMI + SCHOOLING, data = selecte
 # MÔ HÌNH 4: Khác biệt về giáo dục, chỉ số BMI ở các quốc gia
 
 ```{r}
+<<<<<<< HEAD
 model4 <- lm(LIFE.EXPECTANCY ~ 
               SCHOOLING + BMI + COUNTRY + 
               SCHOOLING:COUNTRY + BMI:COUNTRY + 
               ADULT.MORTALITY,
             data = data_cleaned)
+=======
+model4 <- lm(LIFE.EXPECTANCY ~ SCHOOLING * COUNTRY + ADULT.MORTALITY, data = data_cleaned)
+>>>>>>> 451020f0b0e614cbef51fa955933d15bbb80e0aa
 ```
 
 >>>  Phát hiện sự khác biệt của các quốc gia về hiệu quả cảu giáo dục lên tuổi thọ, tác động dinh dưỡng lên sức khỏe 
@@ -170,6 +174,7 @@ print_results(model2)
 ```{r}
 print_results(model3)
 ```
+
 ```{r}
 print_results(model4)
 coef_df <- tidy(model4) %>%

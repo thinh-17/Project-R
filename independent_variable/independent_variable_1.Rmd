@@ -103,15 +103,8 @@ model3 <- lm(LIFE.EXPECTANCY ~ ADULT.MORTALITY + BMI, data = selected_data)
 # MÔ HÌNH 4: Khác biệt về giáo dục, chỉ số BMI ở các quốc gia
 
 ```{r}
-<<<<<<< HEAD
-model4 <- lm(LIFE.EXPECTANCY ~ 
-              SCHOOLING + BMI + COUNTRY + 
-              SCHOOLING:COUNTRY + BMI:COUNTRY + 
-              ADULT.MORTALITY,
-            data = data_cleaned)
-=======
+
 model4 <- lm(LIFE.EXPECTANCY ~ SCHOOLING * COUNTRY + ADULT.MORTALITY, data = data_cleaned)
->>>>>>> 451020f0b0e614cbef51fa955933d15bbb80e0aa
 ```
 
 >>>  Phát hiện sự khác biệt của các quốc gia về hiệu quả cảu giáo dục lên tuổi thọ, tác động dinh dưỡng lên sức khỏe 
@@ -193,7 +186,7 @@ VIF ≥ 10: 	Đa cộng tuyến nặng, cần loại biến hoặc biến đổi
 print("Chỉ số VIF của model 1: ")
 vif(model1)
 print("Chỉ số VIF của model 2: ")
-vif(model2)
+vif(model2,type = 'predictor')
 print("Chỉ số VIF của model 3: ")
 vif(model3)
 print("Chỉ số VIF của model 4: ")

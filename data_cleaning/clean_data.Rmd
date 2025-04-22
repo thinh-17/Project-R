@@ -96,18 +96,12 @@ colnames(data) <- toupper(colnames(data))
 data <- data %>%
   mutate(COUNTRY = str_replace_all(COUNTRY, " ", "_"))
 
-# Tạo biến giả
-data_dummy <- model.matrix(~ STATUS - 1, data = data)
-
-# ĐỔi tên cột biến giả để hiển thị được rõ hơn
-colnames(data_dummy) <- c("DEVELOPED", "DEVELOPING")
-
-# Kết hợp dữ liệu gốc với các cột biến giả
-data_combined <- cbind(data, data_dummy)
+data$STATUS <- ifelse(data$STATUS == "Developed", "1", "0")
+data$STATUS <- as.numeric(data$STATUS)
 
 # Loại bỏ những cột không ảnh hưởng trực tiếp, không có tác động nhiều đến yếu tố cần phân tích (yếu tố tuổi thọ trung bình)
-data_delete <- data_combined %>% 
-  select(-c(INFANT.DEATHS, UNDER.FIVE.DEATHS, HIV.AIDS, STATUS))
+data_delete <- data %>% 
+  select(-c(INFANT.DEATHS, UNDER.FIVE.DEATHS, HIV.AIDS))
 
 # Xem tên các cột sau chuẩn hóa
 colnames(data_delete)
@@ -143,6 +137,7 @@ data_cleaned <- data_cleaned[!(data_cleaned$BMI < 10 | data_cleaned$BMI > 60), ]
 ```{r}
 for (col in colnames(data_cleaned)[-1]) {  # Bỏ cột LIFE.EXPECTANCY
   values <- data_cleaned[[col]]
+
   y <- data_cleaned$LIFE.EXPECTANCY
   
   # Tính IQR cho biến X
@@ -168,7 +163,10 @@ for (col in colnames(data_cleaned)[-1]) {  # Bỏ cột LIFE.EXPECTANCY
 # Xử lý outlier
 
 ```{r}
-for (col in colnames(data_cleaned)[-1]) {  # Bỏ cột LIFE.EXPECTANCY
+# Danh sách các cột cần duyệt (bỏ cột LIFE.EXPECTANCY và BMI)
+cols_to_loop <- setdiff(colnames(data_cleaned), c("LIFE.EXPECTANCY", "STATUS", "COUNTRY"))
+
+for (col in cols_to_loop) {
   values <- data_cleaned[[col]]
   y <- data_cleaned$LIFE.EXPECTANCY
   
@@ -182,13 +180,13 @@ for (col in colnames(data_cleaned)[-1]) {  # Bỏ cột LIFE.EXPECTANCY
   # Xác định outlier theo biến X
   is_outlier <- values < lower | values > upper
   
-  # Thay thế outlier bằng giá trị trung bình (mean)
+  # Thay thế outlier bằng giá trị trung vị
   values[is_outlier] <- median(values[!is_outlier], na.rm = TRUE)
   
-  # Gán ngược lại vào data_cleaned
+  # Gán lại vào data_cleaned
   data_cleaned[[col]] <- values
   
-  # Vẽ scatter plot: X vs LIFE.EXPECTANCY
+  # Vẽ scatter plot
   plot(values, y,
        main = paste("LIFE.EXPECTANCY vs", col),
        xlab = col,
@@ -196,6 +194,7 @@ for (col in colnames(data_cleaned)[-1]) {  # Bỏ cột LIFE.EXPECTANCY
        pch = 19,
        col = ifelse(is_outlier, "red", "black"))
 }
+
 
 ```
 
@@ -215,15 +214,6 @@ na_counts <- colSums(is.na(data_cleaned))
 na_df <- data.frame(Column = names(na_counts), NA_Count = na_counts)
 
 knitr::kable(na_df, caption = "Số lượng giá trị NA theo từng cột")
-# Tạo bảng tổng quan cho từng cột
-overview <- data.frame(
-  Column = names(data_cleaned),
-  Min = sapply(data_cleaned, function(x) if(is.numeric(x)) min(x, na.rm = TRUE) else NA),
-  Max = sapply(data_cleaned, function(x) if(is.numeric(x)) max(x, na.rm = TRUE) else NA),
-  Mean = sapply(data_cleaned, function(x) if(is.numeric(x)) mean(x, na.rm = TRUE) else NA)
-)
-
-knitr::kable(overview, caption = "Tổng quan từng cột trong dữ liệu")
 ```
 
 # Xuấ file sau khi clean

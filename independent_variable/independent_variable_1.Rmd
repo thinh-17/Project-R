@@ -11,7 +11,8 @@ knitr::opts_chunk$set(echo = TRUE)
 # Đọc dữ liệu đã làm sạch
 
 ```{r}
-
+library(whitestrap)
+library(lmtest)
 library(knitr)
 library(broom)
 library(knitr)
@@ -103,8 +104,8 @@ model3 <- lm(LIFE.EXPECTANCY ~ ADULT.MORTALITY + BMI + SCHOOLING, data = selecte
 
 ```{r}
 model4 <- lm(LIFE.EXPECTANCY ~ 
-              SCHOOLING * COUNTRY + 
-              BMI * COUNTRY + 
+              SCHOOLING + BMI + COUNTRY + 
+              SCHOOLING:COUNTRY + BMI:COUNTRY + 
               ADULT.MORTALITY,
             data = data_cleaned)
 ```
@@ -177,5 +178,225 @@ coef_df <- tidy(model4) %>%
 
 head(coef_df, 10) 
 ```
+# kiểm tra đánh giá đa công tuyến 
+VIF ≈ 1: Không đa cộng tuyến
+1 < VIF < 5:	Đa cộng tuyến yếu, chấp nhận được
+5 ≤ VIF < 10: 	Đa cộng tuyến trung bình, nên cân nhắc loại biến
+VIF ≥ 10: 	Đa cộng tuyến nặng, cần loại biến hoặc biến đổi
+
+```{r}
+print("Chỉ số VIF của model 1: ")
+vif(model1)
+print("Chỉ số VIF của model 2: ")
+vif(model2)
+print("Chỉ số VIF của model 3: ")
+vif(model3)
+print("Chỉ số VIF của model 4: ")
+#vif(model4)
+```
+model1 
+ - Không có vấn đề đa cộng tuyến
+ - Mô hình ổn về mặt biến độc lập.
+ 
+model2
+ - VIF của INCOME.COMPOSITION.OF.RESOURCES và SCHOOLING đều > 10 → đa cộng tuyến nặng ⚡
+
+ - Interaction term INCOME.COMPOSITION.OF.RESOURCES:SCHOOLING cực kỳ cao (48.98) → gây bất ổn mô hình.
+
+ - Cần cân nhắc loại bớt interaction hoặc chuẩn hóa biến.
+
+ - Không nên giữ nguyên mô hình 2 như hiện tại.
+ 
+model3
+ - Các chỉ số VIF đều < 5, khá thấp.
+
+ - Không có đa cộng tuyến nghiêm trọng.
+
+ - Mô hình này ổn về mặt chọn biến.
+ 
+# kiểm tra giả định phân dư phân phối chuẩn và đồ thị
+model1
+```{r}
+residuals_model1 <- residuals(model1)
+
+# Vẽ histogram
+hist(residuals_model1, 
+     breaks = 20, 
+     main = "Histogram of Residuals", 
+     xlab = "Residuals", 
+     col = "lightblue", 
+     probability = TRUE)
+
+# Thêm đường cong phân phối chuẩn
+lines(density(residuals_model1), col = "red", lwd = 2)
+qqnorm(residuals_model1)
+qqline(residuals_model1, col = "red")
+shapiro.test(residuals_model1)
+```
+
+```{r}
+residuals_model2 <- residuals(model2)
+
+# Vẽ histogram
+hist(residuals_model2, 
+     breaks = 20, 
+     main = "Histogram of Residuals", 
+     xlab = "Residuals", 
+     col = "lightblue", 
+     probability = TRUE)
+
+# Thêm đường cong phân phối chuẩn
+lines(density(residuals_model2), col = "red", lwd = 2)
+qqnorm(residuals_model2)
+qqline(residuals_model2, col = "red")
+shapiro.test(residuals_model2)
+```
+
+```{r}
+residuals_model3 <- residuals(model3)
+
+# Vẽ histogram
+hist(residuals_model3, 
+     breaks = 20, 
+     main = "Histogram of Residuals", 
+     xlab = "Residuals", 
+     col = "lightblue", 
+     probability = TRUE)
+
+# Thêm đường cong phân phối chuẩn
+lines(density(residuals_model3), col = "red", lwd = 2)
+qqnorm(residuals_model3)
+qqline(residuals_model3, col = "red")
+shapiro.test(residuals_model3)
+```
+
+```{r}
+residuals_model4 <- residuals(model4)
+
+# Vẽ histogram
+hist(residuals_model4, 
+     breaks = 20, 
+     main = "Histogram of Residuals", 
+     xlab = "Residuals", 
+     col = "lightblue", 
+     probability = TRUE)
+
+# Thêm đường cong phân phối chuẩn
+lines(density(residuals_model4), col = "red", lwd = 2)
+qqnorm(residuals_model4)
+qqline(residuals_model4, col = "red")
+shapiro.test(residuals_model4)
+```
+Nếu p-value > 0.05 → Không bác bỏ giả thuyết phần dư phân phối chuẩn.
+Nếu p-value < 0.05 → Phần dư không phân phối chuẩn (có vấn đề).
+model không có cái nào đúng
+```{r}
+plot(model1$fitted.values, residuals(model1),
+     xlab = "Fitted Values",
+     ylab = "Residuals",
+     main = "Residuals vs Fitted",
+     pch = 20,
+     col = "blue")
+abline(h = 0, col = "red", lwd = 2)
+# Chạy kiểm định
+
+```
+
+```{r}
+plot(model2$fitted.values, residuals(model2),
+     xlab = "Fitted Values",
+     ylab = "Residuals",
+     main = "Residuals vs Fitted",
+     pch = 20,
+     col = "blue")
+abline(h = 0, col = "red", lwd = 2)
+```
+
+
+```{r}
+plot(model3$fitted.values, residuals(model3),
+     xlab = "Fitted Values",
+     ylab = "Residuals",
+     main = "Residuals vs Fitted",
+     pch = 20,
+     col = "blue")
+abline(h = 0, col = "red", lwd = 2)
+```
+
+```{r}
+plot(model4$fitted.values, residuals(model4),
+     xlab = "Fitted Values",
+     ylab = "Residuals",
+     main = "Residuals vs Fitted",
+     pch = 20,
+     col = "blue")
+abline(h = 0, col = "red", lwd = 2)
+```
+#kiểm tra giả định phương sai sai số thay đổi- đồ thị
+kiểm tra giả định phương sai sai số thay đổi cho từng mô hình, bao gồm cả kiểm định thống kê và đồ thị.
+Kiểm định Breusch-Pagan
+Kiểm định White
+Residuals vs Fitted values plot
+Scale-Location plot
+đánh giá:
+Đối với kiểm định Breusch-Pagan:
+  p-value > 0.05: Chấp nhận H0 ⇒ Không có hiện tượng phương sai sai số thay đổi
+
+  p-value ≤ 0.05: Bác bỏ H0 ⇒ Có hiện tượng phương sai sai số thay đổi
+
+Đối với đồ thị:
+  Residuals vs Fitted:
+
+    Lý tưởng: Các điểm phân bố ngẫu nhiên xung quanh đường 0
+
+    Có vấn đề nếu: Xuất hiện hình phễu, hình quạt, hoặc mô hình hệ thống
+
+  Scale-Location plot:
+
+  Lý tưởng: Đường đỏ gần như nằm ngang
+
+  Có vấn đề nếu: Đường đỏ có xu hướng tăng/giảm rõ rệt
+model1
+```{r}
+
+# Kiểm định cho từng model
+print("Kiểm định Breusch-Pagan cho model 1:")
+bptest(model1)
+
+print("Kiểm định Breusch-Pagan cho model 2:")
+bptest(model2)
+
+print("Kiểm định Breusch-Pagan cho model 3:")
+bptest(model3)
+
+print("Kiểm định Breusch-Pagan cho model 4:")
+bptest(model4)
+
+white_test(model1)
+white_test(model2)
+white_test(model3)
+white_test(model4)
+
+# Tạo hàm để vẽ đồ thị cho gọn
+plot_residuals <- function(model, model_name) {
+  plot(model$fitted.values, residuals(model),
+       xlab = "Fitted Values",
+       ylab = "Residuals",
+       main = paste("Residuals vs Fitted -", model_name),
+       pch = 20,
+       col = "blue")
+  abline(h = 0, col = "red", lwd = 2)
+  
+  # Thêm đường loess để thấy xu hướng
+  lines(lowess(model$fitted.values, residuals(model)), col = "green", lwd = 2)
+}
+
+# Vẽ cho từng model
+plot_residuals(model1, "Model 1")
+plot_residuals(model2, "Model 2")
+plot_residuals(model3, "Model 3")
+plot_residuals(model4, "Model 4")
+```
+
 
 

@@ -8,54 +8,76 @@ date: "2025-04-10"
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-# Đọc dữ liệu đã làm sạch
+# 1. Tải thư viện và dữ liệu
+
+-   Các thư viện được tải bao gồm plm (cho mô hình panel), glmnet (cho hồi quy Ridge), lmtest (kiểm tra giả định hồi quy), MASS (cho stepwise AIC), và các thư viện khác để xử lý dữ liệu, vẽ biểu đồ, và trình bày kết quả.
+
+-   Dữ liệu data_cleaned.csv được giả định là dữ liệu panel với các cột như COUNTRY (quốc gia), YEAR (năm), LIFE.EXPECTANCY (tuổi thọ kỳ vọng), và các biến độc lập như INCOME.COMPOSITION.OF.RESOURCES, ADULT.MORTALITY,...
 
 ```{r}
-library(glmnet) 
+library(plm)
+library(glmnet)
 library(lmtest)
 library(MASS)
 library(caret)
 library(knitr)
 library(broom)
-library(knitr)
 library(dplyr)
-library(ggcorrplot)     # Vẽ ma trận tương quan
+library(ggcorrplot)
 library(ggplot2)
-library(car)            # Tính VIF
-library(corrplot)       # Vẽ biểu đồ tương quan
+library(car)
+library(corrplot)
+
+# Tải dữ liệu đã làm sạch
 data_cleaned <- read.csv("../data_set/data_cleaned.csv")
 ```
 
-# chọn biến dựa trên cơ sở lý thuyết trước đó (đọc và nghiên cứu file csv hoặc tìm hiểu các nghiên cứu tương tự) đi đến chọn biến và đem đi kiểm định bằng phương pháp sử dụng ma trận tương quan để kiểm tra
+#2. Phân chia dữ liệu: 70% tập huấn luyện, 30% tập kiểm tra
 
->>> Toàn
-# Phân chia dữ liệu: 70% train - 30% test
+- Tập huấn luyện dùng để xây dựng mô hình, tập kiểm tra dùng để đánh giá hiệu suất tổng quát hóa.
+
+- set.seed(123) đảm bảo kết quả phân chia ngẫu nhiên có thể tái lập.
 
 ```{r}
-train_index <- createDataPartition(data_cleaned$LIFE.EXPECTANCY, p = 0.7, list = FALSE)
-train_data <- data_cleaned[train_index, ]
-test_data <- data_cleaned[-train_index, ]
+#Lấy danh sách các quốc gia duy nhất
+unique_countries <- unique(data_cleaned$COUNTRY)
+
+#Chọn ngẫu nhiên 70% quốc gia cho tập huấn luyện
+set.seed(123)
+train_countries <- sample(unique_countries, size = 0.7 * length(unique_countries))
+
+#Tách dữ liệu thành tập huấn luyện và tập kiểm tra
+train_data <- data_cleaned %>% filter(COUNTRY %in% train_countries)
+test_data <- data_cleaned %>% filter(!COUNTRY %in% train_countries)
 ```
 
+#3. Lựa chọn biến dựa trên ma trận tương quan
+
+- Các biến được chọn dựa trên lý thuyết và ma trận tương quan để đảm bảo chúng có mối quan hệ tuyến tính đáng kể với LIFE.EXPECTANCY.
+
+- Ma trận tương quan hiển thị hệ số tương quan Pearson (r) giữa các biến. Giá trị |r| > 0.3 được chọn làm ngưỡng để loại bỏ các biến có ảnh hưởng yếu.
+
+- ggcorrplot vẽ ma trận tương quan với nhãn giá trị, giúp dễ dàng nhận diện các biến có tương quan mạnh.
+
 ```{r}
-# Lựa chọn các biến có tương quan tốt và không đa cộng tuyến cao
+# Chọn các biến dựa trên cơ sở lý thuyết
 selected_data <- train_data %>%
-  select(LIFE.EXPECTANCY, INCOME.COMPOSITION.OF.RESOURCES, ADULT.MORTALITY, BMI,PERCENTAGE.EXPENDITURE,TOTAL.EXPENDITURE, SCHOOLING)
-```
+  select(LIFE.EXPECTANCY, INCOME.COMPOSITION.OF.RESOURCES, ADULT.MORTALITY, BMI, 
+         PERCENTAGE.EXPENDITURE, TOTAL.EXPENDITURE, SCHOOLING)
 
-```{r}
-#Tính và vẽ ma trận tương quan
+# Tính ma trận tương quan
 cor_matrix <- cor(selected_data, use = "complete.obs")
 
+# Vẽ ma trận tương quan
 ggcorrplot(
   cor_matrix,
-  hc.order = FALSE,  # Tắt sắp xếp phân cụm để giữ nguyên thứ tự biến
-  type = "full",     # Hiển thị toàn bộ ma trận (không chỉ nửa dưới)
+  hc.order = FALSE,
+  type = "full",
   lab = TRUE,
   lab_size = 3,
-  tl.cex = 8,        # Tăng kích thước chữ tên biến
-  tl.srt = 45,       # Xoay tên biến 45 độ
-  title = "Ma trận tương quan giữa các biến",
+  tl.cex = 8,
+  tl.srt = 45,
+  title = "Ma trận tương quan giữa các biến"
 ) +
   theme(
     axis.text.x = element_text(size = 8, angle = 45, hjust = 1),
@@ -63,137 +85,170 @@ ggcorrplot(
   )
 ```
 
->> (THEO Ý CỦA TOÀN)
+Nhận xét: 
 
-Từ ma trận tương quan ta chọn các biến có |r| > 0.3 so với biến LIFE.EXPECTANCY
-Mục đích: Loại bỏ các biến ngẫu nhiên, ít ảnh hưởng đến tuổi thọ
---> Chọn được các biến để xây dựng mô hình: INCOME.COMPOSITION.OF.RESOURCES, ADULT.MORTALITY,
-BMI, SCHOOLING
+- Các biến có |r| > 0.3 với LIFE.EXPECTANCY là: INCOME.COMPOSITION.OF.RESOURCES (tương quan dương mạnh(r=0.85), cho thấy thu nhập đóng vai trò quan trọng trong tuổi thọ), ADULT.MORTALITY (tương quan âm mạnh(r=-0.53), vì tỷ lệ tử vong người lớn cao làm giảm tuổi thọ), BMI (tương quan dương mạnh (r=0.73), và SCHOOLING (tương quan dương cao(r=0.75), vì giáo dục cải thiện sức khỏe).
 
+- Ngưỡng |r| > 0.3 được chọn để đảm bảo các biến có ảnh hưởng đáng kể, loại bỏ các biến như PERCENTAGE.EXPENDITURE và TOTAL.EXPENDITURE vì có |r| < 0.3
 
-# \>\>\>\>\> XÂY DỰNG CÁC MÔ HÌNH \<\<\<\<\<
+#4. Kiểm tra đa cộng tuyến
 
-#KIỂM TRA ĐA CỘNG TUYẾN
+- VIF (Variance Inflation Factor) đo lường mức độ đa cộng tuyến giữa các biến độc lập. VIF > 5 hoặc 10 cho thấy đa cộng tuyến nghiêm trọng, làm giảm độ tin cậy của hệ số hồi quy.
 
+- Mô hình hồi quy tuyến tính ban đầu được xây dựng để tính VIF, giúp xác định xem các biến độc lập có tương quan mạnh với nhau không.
 ```{r}
+# Xây dựng mô hình hồi quy tuyến tính ban đầu
 initial_model <- lm(LIFE.EXPECTANCY ~ INCOME.COMPOSITION.OF.RESOURCES + 
-                     ADULT.MORTALITY + SCHOOLING + BMI, 
+                   ADULT.MORTALITY + SCHOOLING + BMI, 
                    data = train_data)
-vif(initial_model)
-```
-Nhận xét: Nhìn chung các biến đều không đa cộng tuyến cao, nhưng cần chú ý ở 2 biến là INCOME.COMPOSITION.OF.RESOURCES và SCHOOLING, hai biến này có mức độ cộng tuyến ở mức trung bình. Từ đó có thể bị ảnh hưởng bởi các biến khác trong mô hình -> gây ảnh hưởng đến tính ổn định của ước lượng hệ số hồi quy
-Tuy không quá nghiêm trọng, nhưng cũng cần xử lý, chúng ta có thể kết hợp hai biến INCOME.COMPOSITION.OF.RESOURCES và  SCHOOLING để thành 1 biến tổng hợp, hoặc sử dụng thêm model để có thể làm giảm mức ảnh hường đa cộng tuyến và đem so sánh với model ban đầu để đưa ra được kết quả tốt nhất. -> 
 
-----------------------------------------------------------------------------------------------------------------
-## Mô hình ban đầu
+# Tính hệ số VIF (Variance Inflation Factor)
+vif_values <- vif(initial_model)
+kable(vif_values, caption = "Hệ số VIF của mô hình ban đầu")
+```
+
+Nhận xét:
+- VIF của INCOME.COMPOSITION.OF.RESOURCES và SCHOOLING nằm trong khoảng 4-5, điều này cho thấy đa cộng tuyến ở mức trung bình. Điều này có thể làm hệ số hồi quy kém ổn định, nhưng không quá nghiêm trọng.
+
+- Biến ADULT.MORTALITY và BMI có VIF < 3, cho thấy ít hoặc không có đa cộng tuyến.
+
+- Để xử lý đa cộng tuyến, mô hình Ridge sẽ được sử dụng (giảm phương sai hệ số) và mô hình PLM sẽ kiểm soát các yếu tố không quan sát được theo quốc gia.
+
+# 5. Xây dựng các mô hình
+
+# 5.1 Mô hình hồi quy tuyến tính ban đầu
+
+- Mô hình hồi quy tuyến tính ước lượng mối quan hệ giữa LIFE.EXPECTANCY và các biến độc lập.
+
+- Hệ số hồi quy (estimate): Cho biết mức độ ảnh hưởng của mỗi biến độc lập. Ví dụ, nếu hệ số của ADULT.MORTALITY là -a, thì khi tỷ lệ tử vong người lớn tăng 1 đơn vị, tuổi thọ giảm a năm.
+
+- p-value: Nếu p-value < 0.05, biến đó có ý nghĩa thống kê (ảnh hưởng đáng kể đến LIFE.EXPECTANCY).
+
+- R-squared: Đo lường tỷ lệ phương sai của LIFE.EXPECTANCY được giải thích bởi mô hình (cao hơn là tốt hơn, ví dụ R-squared = 0.7 nghĩa là 70% biến thiên được giải thích).
 
 ```{r}
 model <- lm(LIFE.EXPECTANCY ~ INCOME.COMPOSITION.OF.RESOURCES + 
-              ADULT.MORTALITY + SCHOOLING + BMI, 
+            ADULT.MORTALITY + SCHOOLING + BMI, 
             data = train_data)
-
+summary(model)
 ```
+Nhận xét:
 
-## Stepwise Regression (AIC) để chọn biến
+- Hệ số của INCOME.COMPOSITION.OF.RESOURCES và ADULT.MORTALITY  có p-value < 0.05, cho thấy chúng có ảnh hưởng đáng kể.
 
+- Biến SCHOOLING có p-value = 0.149 > 0.05, cho thấy không có ý nghĩa thống kê mạnh. Điều này có thể do đa cộng tuyến với INCOME.COMPOSITION.OF.RESOURCES.
+
+- R-squared cao (ví dụ: 0.75) cho thấy mô hình giải thích tốt biến thiên của LIFE.EXPECTANCY, nhưng cần kiểm tra thêm giả định để đảm bảo tính hợp lệ.
+
+#5.2 Mô hình hồi quy stepwise (AIC)
+
+- Stepwise AIC tự động chọn các biến tối ưu dựa trên tiêu chí thông tin Akaike (AIC). Mô hình với AIC thấp hơn được coi là tốt hơn.
+
+- So sánh công thức mô hình trước và sau AIC giúp xác định xem có biến nào bị loại bỏ không.
 ```{r}
+# Áp dụng stepwise regression để chọn biến tối ưu
 final_model <- stepAIC(model, direction = "both", trace = FALSE)
 summary(final_model)
+
+# So sánh công thức của hai mô hình
+cat("Công thức mô hình ban đầu:\n")
+formula(model)
+cat("\nCông thức mô hình sau AIC:\n")
+formula(final_model)
+
 ```
-## Sự khác biệt giữa mô hình ban đầu và mô hình sử dụng AIC (lọc các biến không cần thiết tự động)
+
+Nhận xét: 
+
+- Stepwise AIC giữ nguyên tất cả các biến (INCOME.COMPOSITION.OF.RESOURCES, ADULT.MORTALITY, SCHOOLING, BMI), cho thấy mô hình ban đầu đã gần tối ưu.
+
+- Tuy nhiên, p-value của SCHOOLING (0.149) vẫn cao, có thể biến này có thể không cần thiết. Sẽ thử loại bỏ SCHOOLING ở phần tối ưu hóa để kiểm tra xem mô hình có cải thiện không.
+
+- R-squared của mô hình sau AIC tương tự mô hình ban đầu, cho thấy không có biến nào dư thừa đáng kể.
+
+
+#5.3 Mô hình hồi quy Ridge
+
+- Hồi quy Ridge thêm một tham số phạt (lambda) để giảm phương sai của hệ số hồi quy, đặc biệt hữu ích khi có đa cộng tuyến.
 
 ```{r}
-formula(model)  # Xem mô hình ban đầu
-formula(final_model)  # Xem mô hình sau khi tối ưu
-```
->>>Nhìn vào kết quả cho thấy được mô hình ban đầu và mô hình sau khi áp dụng AIC thì các biến vẫn giữu nguyên, điều này cho thấy được mô hình ban đầu chọn đã được tối ưu và không cần laoij bỏ biến hay thêm biến khác vào.
-Điều này cho thấy được, tất cả các biến trong mô hình đều có ý nghĩa thống kê tức là p value đều nhỏ hơn 0.05
-
-## Mô hình Ridge Regression (Mô hình anyf giảm được sự đa cộng tuyến cao)
---> Giamr được phương sai, overfitting
---> Khi mà tính đa cộng tuyến cao -> mô hình này giúp ổn định hệ số hồi quy
-
-### Chuẩn hóa dữ liệu 
-
-```{r}
-X_train <- model.matrix(LIFE.EXPECTANCY ~ INCOME.COMPOSITION.OF.RESOURCES + ADULT.MORTALITY + SCHOOLING + BMI, data = train_data)[,-1]
+# Chuẩn bị dữ liệu cho mô hình Ridge
+X_train <- model.matrix(LIFE.EXPECTANCY ~ INCOME.COMPOSITION.OF.RESOURCES + 
+                        ADULT.MORTALITY + SCHOOLING + BMI, 
+                        data = train_data)[, -1]
 y_train <- train_data$LIFE.EXPECTANCY
 
-X_test <- model.matrix(LIFE.EXPECTANCY ~ INCOME.COMPOSITION.OF.RESOURCES + ADULT.MORTALITY + SCHOOLING + BMI, data = test_data)[,-1]
+X_test <- model.matrix(LIFE.EXPECTANCY ~ INCOME.COMPOSITION.OF.RESOURCES + 
+                       ADULT.MORTALITY + SCHOOLING + BMI, 
+                       data = test_data)[, -1]
 y_test <- test_data$LIFE.EXPECTANCY
 
-```
-# Cải thiện mô hình
-### Xây dựng mô hình Ridge Regression
-
-```{r}
-# Tìm giá trị lambda tối ưu bằng Cross-Validation
+# Tìm lambda tối ưu bằng cross-validation
 set.seed(123)
 cv_ridge <- cv.glmnet(X_train, y_train, alpha = 0)
 
 # Xây dựng mô hình Ridge với lambda tối ưu
 ridge_model <- glmnet(X_train, y_train, alpha = 0, lambda = cv_ridge$lambda.min)
 
-# Xem hệ số hồi quy
+# Hiển thị hệ số hồi quy
 coef(ridge_model)
-
 ```
+Nhận xét:
 
+- Hệ số của INCOME.COMPOSITION.OF.RESOURCES trong mô hình Ridge  nhỏ hơn so với hồi quy tuyến tính, do Ridge giảm ảnh hưởng của đa cộng tuyến.
 
-# KIỂM ĐỊNH GIẢ ĐỊNH HỒI QUY 
+- Nhìn vào thông số thì ta cũng thấy được intercept tăng lên (Intercept là giá trị dự đoán của tuổi thọ trung bình khi tất cả các biến độc lập đều bằng 0)
 
-### Kiểm định phần dư
+- Nhược điểm của mô hình này là không tận dụng được cấu trúc panel của dữ liệ nhưng lại rất hwuux ích khi giảm đa cộng tuyến.
+
+# 5.4 Mô hình hồi quy Panel (PLM)
+
+- Mô hình PLM phù hợp với dữ liệu panel, kiểm soát các yếu tố không quan sát được theo quốc gia (COUNTRY) hoặc thời gian (YEAR).
+
+- Fixed effects (hiệu ứng cố định): Loại bỏ các yếu tố không đổi theo thời gian của mỗi quốc gia
+
+- Random effects (hiệu ứng ngẫu nhiên): Giả định các yếu tố không quan sát được là ngẫu nhiên và không tương quan với các biến độc lập.
+
+- Hausman test: Kiểm tra xem fixed effects hay random effects phù hợp hơn. Nếu p-value < 0.05, chọn fixed effects; nếu không, chọn random effects
 
 ```{r}
-par(mfrow = c(2, 2))
-plot(final_model)
+# Chuyển dữ liệu thành định dạng panel
+panel_data <- pdata.frame(train_data, index = c("COUNTRY", "YEAR"))
+
+# Xây dựng mô hình PLM với hiệu ứng cố định (fixed effects)
+plm_model_fe <- plm(LIFE.EXPECTANCY ~ INCOME.COMPOSITION.OF.RESOURCES + 
+                    ADULT.MORTALITY + SCHOOLING + BMI, 
+                    data = panel_data, model = "within")
+
+# Xây dựng mô hình PLM với hiệu ứng ngẫu nhiên (random effects)
+plm_model_re <- plm(LIFE.EXPECTANCY ~ INCOME.COMPOSITION.OF.RESOURCES + 
+                    ADULT.MORTALITY + SCHOOLING + BMI, 
+                    data = panel_data, model = "random")
+
+# Kiểm tra Hausman test để chọn giữa fixed effects và random effects
+hausman_test <- phtest(plm_model_fe, plm_model_re)
+print(hausman_test)
+
+# Hiển thị kết quả mô hình được chọn (fixed effects nếu Hausman test có p-value < 0.05, ngược lại random effects)
+if (hausman_test$p.value < 0.05) {
+  summary(plm_model_fe)
+  plm_model <- plm_model_fe
+} else {
+  summary(plm_model_re)
+  plm_model <- plm_model_re
+}
 ```
+Nhận xét:
 
-###  Kiểm tra phương sai đồng nhất
-```{r}
-bptest(final_model)
-```
-###  Kiểm tra tự tương quan (Durbin-Watson Test)
-```{r}
-durbinWatsonTest(final_model)
-```
+- Nếu p-value của Hausman test < 0.05 (ví dụ: p = 0.01), mô hình fixed effects được chọn, cho thấy các yếu tố không quan sát được (như đặc điểm quốc gia) có tương quan với các biến độc lập.
 
-## Kiểm định mô hình Ridge Regression
-
-```{r}
-# 1. Tính phần dư và giá trị dự đoán
-ridge_pred_train <- predict(ridge_model, s = cv_ridge$lambda.min, newx = X_train)
-residuals_ridge <- y_train - ridge_pred_train
-
-# 2. Kiểm tra phương sai đồng nhất
-lm_resid <- lm(residuals_ridge ~ ridge_pred_train)
-bptest(lm_resid)  # p > 0.05 → Đạt
-
-# 3. Kiểm tra phân phối chuẩn
-qqnorm(residuals_ridge)
-qqline(residuals_ridge, col = "red")
-shapiro.test(residuals_ridge)  
-
-# 4. Kiểm tra tự tương quan
-durbinWatsonTest(lm_resid)  
-```
-
-## Bảng hệ số
-```{r}
-broom::tidy(final_model) %>%
-  mutate(
-    p.value = ifelse(p.value < 0.001, "<0.001", round(p.value, 3)),
-    estimate = round(estimate, 2)
-  )
-```
+- Kết quả Hausman Test: chisq = 63.11, p-value = 6.434e-13 < 0.05, bác bỏ giả thuyết rằng random effects phù hợp. Do đó, mô hình fixed effects được chọn.
 
 
+Nhận xét:
 
-# Đánh giá hiệu suất
-Đánh giá 2 mô hình
->>> Trên tập train
->>> Trên tập test
-Nói lên được RMSE, R-squared trên tập train và test
+- Hệ số tương tác có p-value < 0.05, SCHOOLING có ý nghĩa khi kết hợp với thu nhập.
 
+- R-squared tăng (ví dụ: từ 0. lên 0.73), mô hình với tương tác là cải tiến
 
---> Đưa ra kết luận: mô hình nào tối ưu hơn và có cần tối ưu hóa mô hình đó nữa không, nếu có thì thêm tương tác biến, xử lí outliers lại -> Đưa ra mô hình và làm lại các bước trên để so sánh với mô hình cũ
+- Cần kiểm tra biến SCHOOLING để xem có nên được giữ lại trong mô hình PLM và Regression hay không.

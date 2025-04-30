@@ -96,18 +96,12 @@ colnames(data) <- toupper(colnames(data))
 data <- data %>%
   mutate(COUNTRY = str_replace_all(COUNTRY, " ", "_"))
 
-# Tạo biến giả
-data_dummy <- model.matrix(~ STATUS - 1, data = data)
-
-# ĐỔi tên cột biến giả để hiển thị được rõ hơn
-colnames(data_dummy) <- c("DEVELOPED", "DEVELOPING")
-
-# Kết hợp dữ liệu gốc với các cột biến giả
-data_combined <- cbind(data, data_dummy)
+data$STATUS <- ifelse(data$STATUS == "Developed", "1", "0")
+data$STATUS <- as.numeric(data$STATUS)
 
 # Loại bỏ những cột không ảnh hưởng trực tiếp, không có tác động nhiều đến yếu tố cần phân tích (yếu tố tuổi thọ trung bình)
-data_delete <- data_combined %>% 
-  select(-c(INFANT.DEATHS, UNDER.FIVE.DEATHS, HIV.AIDS, STATUS))
+data_delete <- data #%>% 
+ # select(-c(INFANT.DEATHS, UNDER.FIVE.DEATHS, HIV.AIDS))
 
 # Xem tên các cột sau chuẩn hóa
 colnames(data_delete)
@@ -137,66 +131,72 @@ data_cleaned <- data_cleaned[!(data_cleaned$BMI < 10 | data_cleaned$BMI > 60), ]
 ```
 
 # Kiểm outlier
--Xem mối quan hệ giữa biến X và biến Y, đồng thời phát hiện điểm bất thường.
--Giúp phát hiện outlier mang tính "quan hệ" giữa các biến (điều quan trọng để tạo thuận lợi cho việc phân tích hồi quy)
+-Giúp phát hiện các điểm bất thường trong các biến
 
 ```{r}
-for (col in colnames(data_cleaned)[-1]) {  # Bỏ cột LIFE.EXPECTANCY
-  values <- data_cleaned[[col]]
-  y <- data_cleaned$LIFE.EXPECTANCY
-  
-  # Tính IQR cho biến X
-  Q1 <- quantile(values, 0.25, na.rm = TRUE)
-  Q3 <- quantile(values, 0.75, na.rm = TRUE)
-  IQR <- Q3 - Q1
-  lower <- Q1 - 1.5 * IQR
-  upper <- Q3 + 1.5 * IQR
-  
-  # Xác định outlier theo biến X
-  is_outlier <- values < lower | values > upper
-  
-  # Vẽ scatter plot: X vs LIFE.EXPECTANCY
-  plot(values, y,
-       main = paste("LIFE.EXPECTANCY vs", col),
-       xlab = col,
-       ylab = "LIFE.EXPECTANCY",
-       pch = 19,
-       col = ifelse(is_outlier, "red", "black"))
+cols_to_loop <- setdiff(colnames(data_cleaned), c("LIFE.EXPECTANCY", "COUNTRY", "STATUS"))
+
+for (col in cols_to_loop) {
+  for (status_group in unique(data_cleaned$STATUS)) {
+    
+    # Lọc theo nhóm STATUS (Developed / Developing)
+    temp_data <- data_cleaned %>%
+      filter(STATUS == status_group) %>%
+      select(STATUS, LIFE.EXPECTANCY, all_of(col)) %>%
+      rename(x = all_of(col), y = LIFE.EXPECTANCY)
+    
+    # Tính IQR cho biến x trong từng nhóm
+    Q1 <- quantile(temp_data$x, 0.25, na.rm = TRUE)
+    Q3 <- quantile(temp_data$x, 0.75, na.rm = TRUE)
+    IQR <- Q3 - Q1
+    lower <- Q1 - 1.5 * IQR
+    upper <- Q3 + 1.5 * IQR
+    
+    # Xác định outliers
+    temp_data <- temp_data %>%
+      mutate(is_outlier = x < lower | x > upper)
+    
+    # Vẽ scatter plot cho nhóm STATUS hiện tại
+    plot(temp_data$x, temp_data$y,
+         main = paste("STATUS:", status_group, "|", col),
+         xlab = col,
+         ylab = "LIFE.EXPECTANCY",
+         pch = 19,
+         col = ifelse(temp_data$is_outlier, "red", "black"))
+  }
 }
 ```
 
 # Xử lý outlier
+-Nhận thấy dataset hiện tại không thể xử lý outlier theo từng biến nên phương án đưa ra là chỉ xử lý outlier cho riêng từng quốc gia để không làm lệch đi các giá trị có ý nghĩa sau này.
 
 ```{r}
-for (col in colnames(data_cleaned)[-1]) {  # Bỏ cột LIFE.EXPECTANCY
-  values <- data_cleaned[[col]]
-  y <- data_cleaned$LIFE.EXPECTANCY
-  
-  # Tính IQR cho biến X
-  Q1 <- quantile(values, 0.25, na.rm = TRUE)
-  Q3 <- quantile(values, 0.75, na.rm = TRUE)
-  IQR <- Q3 - Q1
-  lower <- Q1 - 1.5 * IQR
-  upper <- Q3 + 1.5 * IQR
-  
-  # Xác định outlier theo biến X
-  is_outlier <- values < lower | values > upper
-  
-  # Thay thế outlier bằng giá trị trung bình (mean)
-  values[is_outlier] <- median(values[!is_outlier], na.rm = TRUE)
-  
-  # Gán ngược lại vào data_cleaned
-  data_cleaned[[col]] <- values
-  
-  # Vẽ scatter plot: X vs LIFE.EXPECTANCY
-  plot(values, y,
-       main = paste("LIFE.EXPECTANCY vs", col),
-       xlab = col,
-       ylab = "LIFE.EXPECTANCY",
-       pch = 19,
-       col = ifelse(is_outlier, "red", "black"))
-}
+cols_to_loop <- setdiff(colnames(data_cleaned), c("LIFE.EXPECTANCY", "STATUS", "COUNTRY"))
 
+for (col in cols_to_loop) {
+  
+  temp_data <- data_cleaned %>%
+    select(COUNTRY, all_of(col)) %>%
+    rename(x = all_of(col))
+  
+  temp_data <- temp_data %>%
+    group_by(COUNTRY) %>%
+    mutate(
+      Q1 = quantile(x, 0.25, na.rm = TRUE),
+      Q3 = quantile(x, 0.75, na.rm = TRUE),
+      IQR = Q3 - Q1,
+      lower = Q1 - 1.5 * IQR,
+      upper = Q3 + 1.5 * IQR,
+      median_val = median(x, na.rm = TRUE),
+      is_outlier = (x < lower | x > upper | x == 0),
+      # Nếu outlier thì thay bằng median của quốc gia đó
+      x_clean = ifelse(is_outlier, median_val, x)
+    ) %>%
+    ungroup()
+  
+  # Cập nhật lại biến đã clean vào data_cleaned
+  data_cleaned[[col]] <- temp_data$x_clean
+}
 ```
 
 # Tổng quan về dataframe sau clean
@@ -215,15 +215,6 @@ na_counts <- colSums(is.na(data_cleaned))
 na_df <- data.frame(Column = names(na_counts), NA_Count = na_counts)
 
 knitr::kable(na_df, caption = "Số lượng giá trị NA theo từng cột")
-# Tạo bảng tổng quan cho từng cột
-overview <- data.frame(
-  Column = names(data_cleaned),
-  Min = sapply(data_cleaned, function(x) if(is.numeric(x)) min(x, na.rm = TRUE) else NA),
-  Max = sapply(data_cleaned, function(x) if(is.numeric(x)) max(x, na.rm = TRUE) else NA),
-  Mean = sapply(data_cleaned, function(x) if(is.numeric(x)) mean(x, na.rm = TRUE) else NA)
-)
-
-knitr::kable(overview, caption = "Tổng quan từng cột trong dữ liệu")
 ```
 
 # Xuấ file sau khi clean

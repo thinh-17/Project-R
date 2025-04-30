@@ -15,6 +15,7 @@ knitr::opts_chunk$set(echo = TRUE)
 -   Dữ liệu data_cleaned.csv được giả định là dữ liệu panel với các cột như COUNTRY (quốc gia), YEAR (năm), LIFE.EXPECTANCY (tuổi thọ kỳ vọng), và các biến độc lập như INCOME.COMPOSITION.OF.RESOURCES, ADULT.MORTALITY,...
 
 ```{r}
+library(whitestrap)
 library(plm)
 library(glmnet)
 library(lmtest)
@@ -27,9 +28,12 @@ library(ggcorrplot)
 library(ggplot2)
 library(car)
 library(corrplot)
+library(stargazer)
 
 # Tải dữ liệu đã làm sạch
 data_cleaned <- read.csv("../data_set/data_cleaned.csv")
+# Chuẩn hóa tên các cột cho đồng nhất
+colnames(data_cleaned) <- toupper(colnames(data_cleaned))
 ```
 
 #2. Phân chia dữ liệu: 70% tập huấn luyện, 30% tập kiểm tra
@@ -63,7 +67,7 @@ test_data <- data_cleaned %>% filter(!COUNTRY %in% train_countries)
 # Chọn các biến dựa trên cơ sở lý thuyết
 selected_data <- train_data %>%
   select(LIFE.EXPECTANCY, INCOME.COMPOSITION.OF.RESOURCES, ADULT.MORTALITY, BMI, 
-         PERCENTAGE.EXPENDITURE, TOTAL.EXPENDITURE, SCHOOLING)
+         PERCENTAGE.EXPENDITURE, TOTAL.EXPENDITURE, SCHOOLING, HIV.AIDS, GDP,VACCINATION_RATE)
 
 # Tính ma trận tương quan
 cor_matrix <- cor(selected_data, use = "complete.obs")
@@ -74,7 +78,7 @@ ggcorrplot(
   hc.order = FALSE,
   type = "full",
   lab = TRUE,
-  lab_size = 3,
+  lab_size = 2.5,
   tl.cex = 8,
   tl.srt = 45,
   title = "Ma trận tương quan giữa các biến"
@@ -86,10 +90,21 @@ ggcorrplot(
 ```
 
 Nhận xét: 
+- Biến phụ thuộc LIFE.EXPECTANCY có tương quan đáng kể (|r| > 0.3) với nhiều biến độc lập. Trong đó: 
+  +INCOME.COMPOSITION.OF.RESOURCES (r = 0.72) có tương quan dương mạnh, cho thấy thu nhập đóng vai trò then chốt trong cải thiện tuổi thọ. 
+  +SCHOOLING (r = 0.74) cũng có tương quan dương cao, phản ánh vai trò của giáo dục trong nâng cao sức khỏe và nhận thức cộng đồng. 
+  +BMI (r = 0.59) cho thấy tình trạng dinh dưỡng có ảnh hưởng tích cực đến tuổi thọ, 
+  +ADULT.MORTALITY (r = -0.67) có tương quan âm mạnh, điều này dễ hiểu vì tỷ lệ tử vong cao tất yếu làm giảm tuổi thọ. 
+  +HIV.AIDS (r = -0.59) cũng có mối quan hệ âm, cho thấy ảnh hưởng tiêu cực của bệnh tật tới sức khỏe cộng đồng. 
+  +Ngoài ra, các biến như GDP (r = 0.43), VACCINATION_RATE (r = 0.47) và PERCENTAGE.EXPENDITURE (r = 0.40) cũng có mối liên hệ dương nhưng ở mức độ trung bình đến yếu. 
+  +Những biến còn lại như TOTAL.EXPENDITURE (r = 0.21) có tương quan quá yếu và có thể được loại bỏ khỏi mô hình.
+- Các biến có thể xem xét loại bỏ một trong hai biến ,nhưng cũng có thể giữ lại nếu không gây ra đa cộng tuyến khi mô hình cho ra kết quả tốt:
 
-- Các biến có |r| > 0.3 với LIFE.EXPECTANCY là: INCOME.COMPOSITION.OF.RESOURCES (tương quan dương mạnh(r=0.85), cho thấy thu nhập đóng vai trò quan trọng trong tuổi thọ), ADULT.MORTALITY (tương quan âm mạnh(r=-0.53), vì tỷ lệ tử vong người lớn cao làm giảm tuổi thọ), BMI (tương quan dương mạnh (r=0.73), và SCHOOLING (tương quan dương cao(r=0.75), vì giáo dục cải thiện sức khỏe).
+  +GDP và INCOME.COMPOSITION.OF.RESOURCES (r = 0.96): GDP cao thường đi kèm với phân bổ thu nhập hợp lý, nên hai biến này gần như trùng nhau về thông tin.
+  
+  +SCHOOLING và INCOME.COMPOSITION.OF.RESOURCES (r = 0.81): Các quốc gia có thu nhập tốt cũng đầu tư mạnh vào giáo dục, khiến hai biến này dễ chồng lấn về ảnh hưởng.
 
-- Ngưỡng |r| > 0.3 được chọn để đảm bảo các biến có ảnh hưởng đáng kể, loại bỏ các biến như PERCENTAGE.EXPENDITURE và TOTAL.EXPENDITURE vì có |r| < 0.3
+  +SCHOOLING và GDP (r = 0.80): GDP cao thường tương ứng với hệ thống giáo dục tốt, vì vậy cũng có nguy cơ đa cộng tuyến.
 
 #4. Kiểm tra đa cộng tuyến
 
@@ -166,42 +181,7 @@ Nhận xét:
 
 - R-squared của mô hình sau AIC tương tự mô hình ban đầu, cho thấy không có biến nào dư thừa đáng kể.
 
-
-#5.3 Mô hình hồi quy Ridge
-
-- Hồi quy Ridge thêm một tham số phạt (lambda) để giảm phương sai của hệ số hồi quy, đặc biệt hữu ích khi có đa cộng tuyến.
-
-```{r}
-# Chuẩn bị dữ liệu cho mô hình Ridge
-X_train <- model.matrix(LIFE.EXPECTANCY ~ INCOME.COMPOSITION.OF.RESOURCES + 
-                        ADULT.MORTALITY + SCHOOLING + BMI, 
-                        data = train_data)[, -1]
-y_train <- train_data$LIFE.EXPECTANCY
-
-X_test <- model.matrix(LIFE.EXPECTANCY ~ INCOME.COMPOSITION.OF.RESOURCES + 
-                       ADULT.MORTALITY + SCHOOLING + BMI, 
-                       data = test_data)[, -1]
-y_test <- test_data$LIFE.EXPECTANCY
-
-# Tìm lambda tối ưu bằng cross-validation
-set.seed(123)
-cv_ridge <- cv.glmnet(X_train, y_train, alpha = 0)
-
-# Xây dựng mô hình Ridge với lambda tối ưu
-ridge_model <- glmnet(X_train, y_train, alpha = 0, lambda = cv_ridge$lambda.min)
-
-# Hiển thị hệ số hồi quy
-coef(ridge_model)
-```
-Nhận xét:
-
-- Hệ số của INCOME.COMPOSITION.OF.RESOURCES trong mô hình Ridge  nhỏ hơn so với hồi quy tuyến tính, do Ridge giảm ảnh hưởng của đa cộng tuyến.
-
-- Nhìn vào thông số thì ta cũng thấy được intercept tăng lên (Intercept là giá trị dự đoán của tuổi thọ trung bình khi tất cả các biến độc lập đều bằng 0)
-
-- Nhược điểm của mô hình này là không tận dụng được cấu trúc panel của dữ liệ nhưng lại rất hwuux ích khi giảm đa cộng tuyến.
-
-# 5.4 Mô hình hồi quy Panel (PLM)
+# 5.3 Mô hình hồi quy Panel (PLM)
 
 - Mô hình PLM phù hợp với dữ liệu panel, kiểm soát các yếu tố không quan sát được theo quốc gia (COUNTRY) hoặc thời gian (YEAR).
 
@@ -217,13 +197,32 @@ panel_data <- pdata.frame(train_data, index = c("COUNTRY", "YEAR"))
 
 # Xây dựng mô hình PLM với hiệu ứng cố định (fixed effects)
 plm_model_fe <- plm(LIFE.EXPECTANCY ~ INCOME.COMPOSITION.OF.RESOURCES + 
-                    ADULT.MORTALITY + SCHOOLING + BMI, 
+                    ADULT.MORTALITY + SCHOOLING +HIV.AIDS + log(GDP) + VACCINATION_RATE, 
                     data = panel_data, model = "within")
 
 # Xây dựng mô hình PLM với hiệu ứng ngẫu nhiên (random effects)
 plm_model_re <- plm(LIFE.EXPECTANCY ~ INCOME.COMPOSITION.OF.RESOURCES + 
-                    ADULT.MORTALITY + SCHOOLING + BMI, 
+                    ADULT.MORTALITY + SCHOOLING +HIV.AIDS + log(GDP) + VACCINATION_RATE, 
                     data = panel_data, model = "random")
+#in model plm
+stargazer(plm_model_fe,type ='text')
+stargazer(plm_model_re,type ='text')
+lm_model <- lm(formula(plm_model_fe), data = train_data)
+vif(lm_model)
+lm_model <- lm(formula(plm_model_re), data = train_data)
+vif(lm_model)
+```
+Nhận xét:
+
+- Hệ số tương tác có p-value < 0.05, SCHOOLING có ý nghĩa khi kết hợp với thu nhập.
+
+- R-squared tăng (ví dụ: từ 0. lên 0.73), mô hình với tương tác là cải tiến
+
+- Cần kiểm tra biến SCHOOLING để xem có nên được giữ lại trong mô hình PLM và Regression hay không.
+
+
+#kiểm định mô hình plm
+```{r}
 
 # Kiểm tra Hausman test để chọn giữa fixed effects và random effects
 hausman_test <- phtest(plm_model_fe, plm_model_re)
@@ -239,16 +238,172 @@ if (hausman_test$p.value < 0.05) {
 }
 ```
 Nhận xét:
+H₀ (giả thuyết không): Mô hình hiệu ngẫu nhiên là phù hợp (RE thích hợp hơn),không có tương quan giữa sai số và biến độc lập
+H₁ (giả thuyết đối): Mô hình hiệu cố định là phù hợp (FE thích hợp hơn).
 
 - Nếu p-value của Hausman test < 0.05 (ví dụ: p = 0.01), mô hình fixed effects được chọn, cho thấy các yếu tố không quan sát được (như đặc điểm quốc gia) có tương quan với các biến độc lập.
 
-- Kết quả Hausman Test: chisq = 63.11, p-value = 6.434e-13 < 0.05, bác bỏ giả thuyết rằng random effects phù hợp. Do đó, mô hình fixed effects được chọn.
+- Kết quả Hausman Test: chisq = 717.84, p-value = 2.2e-16 < 0.05, bác bỏ giả thuyết rằng random effects phù hợp. Do đó, mô hình fixed effects được chọn.
 
 
+
+```{r}
+#kiểm định tư tương quan bậc 1 (Breusch-Godfrey) cho mô hình plm hiệu cố định (fixed effects)
+pbgtest(plm_model_fe, order = 1)
+#kiểm định tư tương quan bậc 1 (Breusch-Godfrey) không áp dụng mô hình plm hiệu ngẫu nhiên (random effects)
+pbgtest(plm_model_re, order = 1)
+```
+h0 không có sự tự tương quan
+h1 có sự tự tương quan
+Với p-value cực kỳ nhỏ 2.2e-16 (< mức ý nghĩa thông thường 0.05), chúng ta bác bỏ giả thuyết H0 (không có tự tương quan)
+
+Có bằng chứng mạnh mẽ về tự tương quan bậc 1 trong phần sai số đặc thù (idiosyncratic errors) của mô hình
+
+Tuy có hiện tượng tự tương quan nhưng hiện tượng tự tương quan không là vấn đề đối với dữ 
+liệu bảng có số đơn vị chéo ( số lượng quốc gia) lớn hơn số năm quan sát.(hơn 160 quốc gia)
+```{r}
+#kiểm định robust standard errors cho mô hình PLM hiệu cố định
+coeftest(plm_model_fe, vcov = vcovHC(plm_model_fe, type = "HC0", cluster = "group"))
+#kiểm định robust standard errors không áp dụng cho mô hình PLM hiệu ngẫu nhiên
+```
+h0:hệ số của biến đó không có ảnh hưởng đáng kể đến biến phụ thuộc, tức là không có mối quan hệ giữa biến độc lập và biến phụ thuộc
+h1:hệ số của biến đó có ảnh hưởng đáng kể đến biến phụ thuộc, tức là có mối quan hệ giữa biến độc lập và biến phụ thuộc.
+p-value <0.05 bác bỏ h0
+p-value < 0.001: Mức độ ý nghĩa rất cao, thường được ký hiệu bằng "***".
+
+0.001 ≤ p-value < 0.01: Mức độ ý nghĩa cao, ký hiệu bằng "**".
+
+0.01 ≤ p-value < 0.05: Mức độ ý nghĩa trung bình, ký hiệu bằng "*".
+
+0.05 ≤ p-value < 0.1: Mức độ ý nghĩa yếu, ký hiệu bằng ".".
+
+p-value ≥ 0.1: Không có ý nghĩa thống kê, thường không ký hiệu hoặc không được xem xét là có ảnh hưởng.
 Nhận xét:
 
-- Hệ số tương tác có p-value < 0.05, SCHOOLING có ý nghĩa khi kết hợp với thu nhập.
+INCOME.COMPOSITION.OF.RESOURCES: Hệ số này có giá trị ước lượng là 3.39120151  với giá trị t là 3.7509  và p-value là 0.0001831 . Vì p-value nhỏ hơn 0.001, ta có thể kết luận rằng biến này có ảnh hưởng thống kê đáng kể đến biến phụ thuộc, với mức độ tin cậy cao (***).
 
-- R-squared tăng (ví dụ: từ 0. lên 0.73), mô hình với tương tác là cải tiến
+ADULT.MORTALITY: Hệ số này có giá trị ước lượng là -0.00126706 với giá trị t là -1.4100  và p-value là 0.1587432 P-value lớn hơn 0.01, cho thấy biến này không đang tin cậy không ảnh hưởng đến biến phụ thuộc
 
-- Cần kiểm tra biến SCHOOLING để xem có nên được giữ lại trong mô hình PLM và Regression hay không.
+SCHOOLING: Hệ số này có giá trị ước lượng là 0.66550391 với giá trị t là 3.1875 và p-value là 0.0014656. P-value nhỏ hơn 0.01, chứng tỏ biến này có ảnh hưởng đáng kể và tác động tích cực (**) đến biến phụ thuộc.
+
+HIV.AIDS Hệ số này có giá trị ước lượng là -0.47587811 với giá trị t là -7.8513   và p-value là 7.898e-15. Vì p-value nhỏ hơn 0.001, ta có thể kết luận rằng biến này có ảnh hưởng thống kê tiêu cực đáng kể đến biến phụ thuộc, với mức độ tin cậy cao (***).
+
+Các biến log(GDP), VACCINATION_RATE và VACCINATION_RATE có ảnh hưởng ở mức trung bình đến biến phụ thuộc.
+
+Biến BMI không có ảnh hưởng đáng kể trong mô hình này.
+# đánh giá mô hình OLS
+```{r}
+print("Chỉ số VIF của mô hình hồi quy stepwise: ")
+vif(final_model)
+```
+Nhận xét:
+- các biến INCOME.COMPOSITION.OF.RESOURCES,ADULT.MORTALITY,SCHOOLING,BMI có chỉ số VIF <5 
+không xảy ra hiện tương đa cộng tuyến giữa các biến 
+# kiểm tra giả định phân dư phân phối chuẩn và đồ thị
+```{r}
+residuals_final_model <- residuals(final_model)
+
+# Vẽ histogram
+hist(residuals_final_model, 
+     breaks = 20, 
+     main = "Histogram of Residuals", 
+     xlab = "Residuals", 
+     col = "lightblue", 
+     probability = TRUE)
+
+# Thêm đường cong phân phối chuẩn
+lines(density(residuals_final_model), col = "red", lwd = 2)
+qqnorm(residuals_final_model)
+qqline(residuals_final_model, col = "red")
+shapiro.test(residuals_final_model)
+```
+
+Nhận xét:
+*Histogram of Residuals
+Nhận xét:
+
+Phần dư có xu hướng phân bố không đối xứng (asymmetric) với một số giá trị nằm xa trung tâm (có thể là outliers).
+
+Phần dư tập trung nhiều ở khoảng giữa nhưng có đuôi dài về phía âm (giá trị -20 xuất hiện).
+
+*Normal Q-Q Plot
+Nhận xét:
+
+Các điểm lệch khỏi đường thẳng chéo (đường chuẩn), đặc biệt ở hai đuôi → Phần dư không tuân theo phân phối chuẩn.
+
+Đuôi trái (âm) kéo dài hơn so với đuôi phải (dương), cho thấy phân phối lệch trái (left-skewed).
+
+*Shapiro-Wilk Test
+Kết quả:
+
+Giá trị W = 0.94865 (càng gần 1 càng chuẩn).
+H₀ (Null Hypothesis): Phần dư có phân phối chuẩn.
+→ Dữ liệu phù hợp với giả định của mô hình hồi quy tuyến tính cổ điển (OLS).
+H₁ (Alternative Hypothesis): Phần dư không có phân phối chuẩn.
+→ Vi phạm giả định, cần điều chỉnh mô hình hoặc dữ liệu.
+p-value < 2.2e-16 → Bác bỏ giả thuyết H₀ (phần dư có phân phối chuẩn).
+
+Kết luận: Phần dư không tuân theo phân phối chuẩn.
+
+#kiểm tra giả định phương sai sai số thay đổi- đồ thị
+
+```{r}
+print("Kiểm định Breusch-Pagan cho model ols:")
+bptest(final_model)
+
+white_test(final_model)
+# Tạo hàm để vẽ đồ thị cho gọn
+plot_residuals <- function(model, model_name) {
+  plot(model$fitted.values, residuals(model),
+       xlab = "Fitted Values",
+       ylab = "Residuals",
+       main = paste("Residuals vs Fitted -", model_name),
+       pch = 20,
+       col = "blue")
+  abline(h = 0, col = "red", lwd = 2)
+  
+  # Thêm đường loess để thấy xu hướng
+  lines(lowess(model$fitted.values, residuals(model)), col = "green", lwd = 2)
+}
+
+# Vẽ cho từng model
+plot_residuals(final_model, "final_model")
+```
+*Kết quả Kiểm định Breusch-Pagan và White's Test
+Breusch-Pagan Test:
+
+Giả thuyết:
+
+H₀: Phương sai sai số đồng đều (Homoskedasticity).
+
+H₁: Phương sai sai số thay đổi (Heteroskedasticity).
+
+Kết quả:
+
+BP = 320.9, p-value < 2.2e-16 → Bác bỏ H₀ → Có heteroskedasticity.
+
+White's Test:
+
+Kết quả:
+
+Test Statistic = 36.84, P-value = 0 → Bác bỏ H₀ → Xác nhận heteroskedasticity.
+
+→ Cả hai kiểm định đều khẳng định hiện tượng phương sai sai số thay đổi.
+*Biểu đồ Residuals vs Fitted
+Nhận xét:
+
+Mô hình: final_model.
+
+Phần dư (Residuals) biến động mạnh khi giá trị dự đoán (Fitted Values) tăng (từ 40 đến 80).
+
+Hình ảnh điển hình của heteroskedasticity: Phần dư phân tán rộng hoặc thu hẹp tùy theo giá trị dự đoán 
+Kết luận: Hậu quả của Heteroskedasticity
+  - Ước lượng OLS không còn hiệu quả (BLUE).
+
+  - Sai số chuẩn (Standard Errors) bị chệch → Kiểm định t/F và khoảng tin cậy không đáng tin cậy.
+
+  - Dự đoán kém chính xác.
+  
+  
+### Tóm lại:Thông qua việc kiểm tra giả định các model cho hình model hồi quy tuyến tính plm fixed effects cho ra độ chính xác và tính ổn định cao Kiểm soát được các yếu tố không quan sát, Phù hợp với dữ liệu có N lớn, T nhỏ, Giảm thiểu bias do tự tương quan, rất phù hợp với dạng dữ liệu kiểu panel
+

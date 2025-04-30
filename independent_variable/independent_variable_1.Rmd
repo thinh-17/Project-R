@@ -291,6 +291,26 @@ HIV.AIDS Hệ số này có giá trị ước lượng là -0.47587811 với gi�
 Các biến log(GDP), VACCINATION_RATE và VACCINATION_RATE có ảnh hưởng ở mức trung bình đến biến phụ thuộc.
 
 Biến BMI không có ảnh hưởng đáng kể trong mô hình này.
+
+#một cách loại bỏ tự tương quan
+```{r}
+model_gmm <- pgmm(LIFE.EXPECTANCY ~ lag(LIFE.EXPECTANCY, 1) + INCOME.COMPOSITION.OF.RESOURCES + 
+                    ADULT.MORTALITY + SCHOOLING + HIV.AIDS + log(GDP) | 
+                    lag(LIFE.EXPECTANCY, 2:99), 
+                  data = panel_data, 
+                  effect = "individual", 
+                  model = "twosteps", 
+                  index = c("COUNTRY", "YEAR"))
+summary(model_gmm)
+```
+Đánh giá: Sau khi áp dụng model pgmm, ta kiểm tra kiểm định phương sai sai số thay đổi.
+  với Sargan test: chisq(104) = 73.04399 (p-value = 0.99083), ta có p-value lớn hơn 0.05, H0 là không có phương sai sai số thay đổi ==> ta không bác bỏ H0 --> không có hiện tượng phương sai sai số thay đổi.
+  Với Autocorrelation test: ta có H0 là không có tự tương quan bậc k
+  Bậc kiểm định	      P-value	                            Diễn giải
+AR(1)	              3.5e-06 (rất nhỏ)	      Bác bỏ H₀ → có tự tương quan bậc 1 (điều này là                                            bình thường & mong đợi trong mô hình GMM)
+
+AR(2)	              0.0965 (lớn hơn 0.05)	  Không bác bỏ H₀ → không có tự tương quan bậc 2                                               ⇒ mô hình hợp lệ
+Tự tương quan bậc 1 là bình thường (do sai phân), quan trọng là không có AR(2) — đây là điều kiện then chốt để GMM hợp lệ
 # đánh giá mô hình OLS
 ```{r}
 print("Chỉ số VIF của mô hình hồi quy stepwise: ")

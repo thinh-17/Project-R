@@ -53,6 +53,9 @@ train_countries <- sample(unique_countries, size = 0.7 * length(unique_countries
 #Tách dữ liệu thành tập huấn luyện và tập kiểm tra
 train_data <- data_cleaned %>% filter(COUNTRY %in% train_countries)
 test_data <- data_cleaned %>% filter(!COUNTRY %in% train_countries)
+
+cat("Số quốc gia trong tập huấn luyện:", length(unique(train_data$COUNTRY)), "\n")
+cat("Số quốc gia trong tập kiểm tra:", length(unique(test_data$COUNTRY)), "\n")
 ```
 
 #3. Lựa chọn biến dựa trên ma trận tương quan
@@ -91,18 +94,16 @@ ggcorrplot(
 
 Nhận xét: 
 - Biến phụ thuộc LIFE.EXPECTANCY có tương quan đáng kể (|r| > 0.3) với nhiều biến độc lập. Trong đó: 
-  +INCOME.COMPOSITION.OF.RESOURCES (r = 0.72) có tương quan dương mạnh, cho thấy thu nhập đóng vai trò then chốt trong cải thiện tuổi thọ. 
-  +SCHOOLING (r = 0.74) cũng có tương quan dương cao, phản ánh vai trò của giáo dục trong nâng cao sức khỏe và nhận thức cộng đồng. 
-  +BMI (r = 0.59) cho thấy tình trạng dinh dưỡng có ảnh hưởng tích cực đến tuổi thọ, 
+  +INCOME.COMPOSITION.OF.RESOURCES (r = 0.82) có tương quan dương mạnh, cho thấy thu nhập đóng vai trò then chốt trong cải thiện tuổi thọ. 
+  +SCHOOLING (r = 0.77) cũng có tương quan dương cao, phản ánh vai trò của giáo dục trong nâng cao sức khỏe và nhận thức cộng đồng. 
+  +BMI (r = 0.75) cho thấy tình trạng dinh dưỡng có ảnh hưởng tích cực đến tuổi thọ, 
   +ADULT.MORTALITY (r = -0.67) có tương quan âm mạnh, điều này dễ hiểu vì tỷ lệ tử vong cao tất yếu làm giảm tuổi thọ. 
-  +HIV.AIDS (r = -0.59) cũng có mối quan hệ âm, cho thấy ảnh hưởng tiêu cực của bệnh tật tới sức khỏe cộng đồng. 
-  +Ngoài ra, các biến như GDP (r = 0.43), VACCINATION_RATE (r = 0.47) và PERCENTAGE.EXPENDITURE (r = 0.40) cũng có mối liên hệ dương nhưng ở mức độ trung bình đến yếu. 
-  +Những biến còn lại như TOTAL.EXPENDITURE (r = 0.21) có tương quan quá yếu và có thể được loại bỏ khỏi mô hình.
+  +HIV.AIDS (r = -0.73) cũng có mối quan hệ âm, cho thấy ảnh hưởng tiêu cực của bệnh tật tới sức khỏe cộng đồng. 
+  +Ngoài ra, các biến như GDP (r = 0.43), VACCINATION_RATE (r = 0.56) và PERCENTAGE.EXPENDITURE (r = 0.42) cũng có mối liên hệ dương nhưng ở mức độ trung bình đến yếu. 
+  +Những biến còn lại như TOTAL.EXPENDITURE (r = 0.18) có tương quan quá yếu và có thể được loại bỏ khỏi mô hình.
 - Các biến có thể xem xét loại bỏ một trong hai biến ,nhưng cũng có thể giữ lại nếu không gây ra đa cộng tuyến khi mô hình cho ra kết quả tốt:
-
-  +GDP và INCOME.COMPOSITION.OF.RESOURCES (r = 0.96): GDP cao thường đi kèm với phân bổ thu nhập hợp lý, nên hai biến này gần như trùng nhau về thông tin.
   
-  +SCHOOLING và INCOME.COMPOSITION.OF.RESOURCES (r = 0.81): Các quốc gia có thu nhập tốt cũng đầu tư mạnh vào giáo dục, khiến hai biến này dễ chồng lấn về ảnh hưởng.
+  +SCHOOLING và INCOME.COMPOSITION.OF.RESOURCES (r = 0.87): Các quốc gia có thu nhập tốt cũng đầu tư mạnh vào giáo dục, khiến hai biến này dễ chồng lấn về ảnh hưởng.
 
   +SCHOOLING và GDP (r = 0.80): GDP cao thường tương ứng với hệ thống giáo dục tốt, vì vậy cũng có nguy cơ đa cộng tuyến.
 
@@ -114,7 +115,7 @@ Nhận xét:
 ```{r}
 # Xây dựng mô hình hồi quy tuyến tính ban đầu
 initial_model <- lm(LIFE.EXPECTANCY ~ INCOME.COMPOSITION.OF.RESOURCES + 
-                   ADULT.MORTALITY + SCHOOLING + BMI, 
+                    ADULT.MORTALITY + SCHOOLING +HIV.AIDS + log(GDP) + VACCINATION_RATE, 
                    data = train_data)
 
 # Tính hệ số VIF (Variance Inflation Factor)
@@ -127,7 +128,7 @@ Nhận xét:
 
 - Biến ADULT.MORTALITY và BMI có VIF < 3, cho thấy ít hoặc không có đa cộng tuyến.
 
-- Để xử lý đa cộng tuyến, mô hình Ridge sẽ được sử dụng (giảm phương sai hệ số) và mô hình PLM sẽ kiểm soát các yếu tố không quan sát được theo quốc gia.
+- Để xử lý đa cộng tuyến, mô hình PLM sẽ kiểm soát các yếu tố không quan sát được theo quốc gia.
 
 # 5. Xây dựng các mô hình
 
@@ -143,17 +144,15 @@ Nhận xét:
 
 ```{r}
 model <- lm(LIFE.EXPECTANCY ~ INCOME.COMPOSITION.OF.RESOURCES + 
-            ADULT.MORTALITY + SCHOOLING + BMI, 
+                    ADULT.MORTALITY + SCHOOLING +HIV.AIDS + log(GDP) + VACCINATION_RATE, 
             data = train_data)
 summary(model)
 ```
 Nhận xét:
 
-- Hệ số của INCOME.COMPOSITION.OF.RESOURCES và ADULT.MORTALITY  có p-value < 0.05, cho thấy chúng có ảnh hưởng đáng kể.
+- Hệ số p-value của tất cả các biến đều có ý nghĩa thống kê tốt. (p-value < 0.05)
 
-- Biến SCHOOLING có p-value = 0.149 > 0.05, cho thấy không có ý nghĩa thống kê mạnh. Điều này có thể do đa cộng tuyến với INCOME.COMPOSITION.OF.RESOURCES.
-
-- R-squared cao (ví dụ: 0.75) cho thấy mô hình giải thích tốt biến thiên của LIFE.EXPECTANCY, nhưng cần kiểm tra thêm giả định để đảm bảo tính hợp lệ.
+- R-squared cao (ví dụ: 0.8595) cho thấy mô hình giải thích tốt biến thiên của LIFE.EXPECTANCY, nhưng cần kiểm tra thêm giả định để đảm bảo tính hợp lệ.
 
 #5.2 Mô hình hồi quy stepwise (AIC)
 
@@ -177,152 +176,16 @@ Nhận xét:
 
 - Stepwise AIC giữ nguyên tất cả các biến (INCOME.COMPOSITION.OF.RESOURCES, ADULT.MORTALITY, SCHOOLING, BMI), cho thấy mô hình ban đầu đã gần tối ưu.
 
-- Tuy nhiên, p-value của SCHOOLING (0.149) vẫn cao, có thể biến này có thể không cần thiết. Sẽ thử loại bỏ SCHOOLING ở phần tối ưu hóa để kiểm tra xem mô hình có cải thiện không.
 
 - R-squared của mô hình sau AIC tương tự mô hình ban đầu, cho thấy không có biến nào dư thừa đáng kể.
 
-# 5.3 Mô hình hồi quy Panel (PLM)
-
-- Mô hình PLM phù hợp với dữ liệu panel, kiểm soát các yếu tố không quan sát được theo quốc gia (COUNTRY) hoặc thời gian (YEAR).
-
-- Fixed effects (hiệu ứng cố định): Loại bỏ các yếu tố không đổi theo thời gian của mỗi quốc gia
-
-- Random effects (hiệu ứng ngẫu nhiên): Giả định các yếu tố không quan sát được là ngẫu nhiên và không tương quan với các biến độc lập.
-
-- Hausman test: Kiểm tra xem fixed effects hay random effects phù hợp hơn. Nếu p-value < 0.05, chọn fixed effects; nếu không, chọn random effects
-
-```{r}
-# Chuyển dữ liệu thành định dạng panel
-panel_data <- pdata.frame(train_data, index = c("COUNTRY", "YEAR"))
-
-# Xây dựng mô hình PLM với hiệu ứng cố định (fixed effects)
-plm_model_fe <- plm(LIFE.EXPECTANCY ~ INCOME.COMPOSITION.OF.RESOURCES + 
-                    ADULT.MORTALITY + SCHOOLING +HIV.AIDS + log(GDP) + VACCINATION_RATE, 
-                    data = panel_data, model = "within")
-
-# Xây dựng mô hình PLM với hiệu ứng ngẫu nhiên (random effects)
-plm_model_re <- plm(LIFE.EXPECTANCY ~ INCOME.COMPOSITION.OF.RESOURCES + 
-                    ADULT.MORTALITY + SCHOOLING +HIV.AIDS + log(GDP) + VACCINATION_RATE, 
-                    data = panel_data, model = "random")
-#in model plm
-stargazer(plm_model_fe,type ='text')
-stargazer(plm_model_re,type ='text')
-lm_model <- lm(formula(plm_model_fe), data = train_data)
-vif(lm_model)
-lm_model <- lm(formula(plm_model_re), data = train_data)
-vif(lm_model)
-```
-Nhận xét:
-
-- Hệ số tương tác có p-value < 0.05, SCHOOLING có ý nghĩa khi kết hợp với thu nhập.
-
-- R-squared tăng (ví dụ: từ 0. lên 0.73), mô hình với tương tác là cải tiến
-
-- Cần kiểm tra biến SCHOOLING để xem có nên được giữ lại trong mô hình PLM và Regression hay không.
-
-
-#kiểm định mô hình plm
-```{r}
-
-# Kiểm tra Hausman test để chọn giữa fixed effects và random effects
-hausman_test <- phtest(plm_model_fe, plm_model_re)
-print(hausman_test)
-
-# Hiển thị kết quả mô hình được chọn (fixed effects nếu Hausman test có p-value < 0.05, ngược lại random effects)
-if (hausman_test$p.value < 0.05) {
-  summary(plm_model_fe)
-  plm_model <- plm_model_fe
-} else {
-  summary(plm_model_re)
-  plm_model <- plm_model_re
-}
-```
-Nhận xét:
-H₀ (giả thuyết không): Mô hình hiệu ngẫu nhiên là phù hợp (RE thích hợp hơn),không có tương quan giữa sai số và biến độc lập
-H₁ (giả thuyết đối): Mô hình hiệu cố định là phù hợp (FE thích hợp hơn).
-
-- Nếu p-value của Hausman test < 0.05 (ví dụ: p = 0.01), mô hình fixed effects được chọn, cho thấy các yếu tố không quan sát được (như đặc điểm quốc gia) có tương quan với các biến độc lập.
-
-- Kết quả Hausman Test: chisq = 717.84, p-value = 2.2e-16 < 0.05, bác bỏ giả thuyết rằng random effects phù hợp. Do đó, mô hình fixed effects được chọn.
-
-
-
-```{r}
-#kiểm định tư tương quan bậc 1 (Breusch-Godfrey) cho mô hình plm hiệu cố định (fixed effects)
-pbgtest(plm_model_fe, order = 1)
-#kiểm định tư tương quan bậc 1 (Breusch-Godfrey) không áp dụng mô hình plm hiệu ngẫu nhiên (random effects)
-pbgtest(plm_model_re, order = 1)
-```
-h0 không có sự tự tương quan
-h1 có sự tự tương quan
-Với p-value cực kỳ nhỏ 2.2e-16 (< mức ý nghĩa thông thường 0.05), chúng ta bác bỏ giả thuyết H0 (không có tự tương quan)
-
-Có bằng chứng mạnh mẽ về tự tương quan bậc 1 trong phần sai số đặc thù (idiosyncratic errors) của mô hình
-
-Tuy có hiện tượng tự tương quan nhưng hiện tượng tự tương quan không là vấn đề đối với dữ 
-liệu bảng có số đơn vị chéo ( số lượng quốc gia) lớn hơn số năm quan sát.(hơn 160 quốc gia)
-```{r}
-#kiểm định robust standard errors cho mô hình PLM hiệu cố định
-coeftest(plm_model_fe, vcov = vcovHC(plm_model_fe, type = "HC0", cluster = "group"))
-#kiểm định robust standard errors không áp dụng cho mô hình PLM hiệu ngẫu nhiên
-```
-h0:hệ số của biến đó không có ảnh hưởng đáng kể đến biến phụ thuộc, tức là không có mối quan hệ giữa biến độc lập và biến phụ thuộc
-h1:hệ số của biến đó có ảnh hưởng đáng kể đến biến phụ thuộc, tức là có mối quan hệ giữa biến độc lập và biến phụ thuộc.
-p-value <0.05 bác bỏ h0
-p-value < 0.001: Mức độ ý nghĩa rất cao, thường được ký hiệu bằng "***".
-
-0.001 ≤ p-value < 0.01: Mức độ ý nghĩa cao, ký hiệu bằng "**".
-
-0.01 ≤ p-value < 0.05: Mức độ ý nghĩa trung bình, ký hiệu bằng "*".
-
-0.05 ≤ p-value < 0.1: Mức độ ý nghĩa yếu, ký hiệu bằng ".".
-
-p-value ≥ 0.1: Không có ý nghĩa thống kê, thường không ký hiệu hoặc không được xem xét là có ảnh hưởng.
-Nhận xét:
-
-INCOME.COMPOSITION.OF.RESOURCES: Hệ số này có giá trị ước lượng là 3.39120151  với giá trị t là 3.7509  và p-value là 0.0001831 . Vì p-value nhỏ hơn 0.001, ta có thể kết luận rằng biến này có ảnh hưởng thống kê đáng kể đến biến phụ thuộc, với mức độ tin cậy cao (***).
-
-ADULT.MORTALITY: Hệ số này có giá trị ước lượng là -0.00126706 với giá trị t là -1.4100  và p-value là 0.1587432 P-value lớn hơn 0.01, cho thấy biến này không đang tin cậy không ảnh hưởng đến biến phụ thuộc
-
-SCHOOLING: Hệ số này có giá trị ước lượng là 0.66550391 với giá trị t là 3.1875 và p-value là 0.0014656. P-value nhỏ hơn 0.01, chứng tỏ biến này có ảnh hưởng đáng kể và tác động tích cực (**) đến biến phụ thuộc.
-
-HIV.AIDS Hệ số này có giá trị ước lượng là -0.47587811 với giá trị t là -7.8513   và p-value là 7.898e-15. Vì p-value nhỏ hơn 0.001, ta có thể kết luận rằng biến này có ảnh hưởng thống kê tiêu cực đáng kể đến biến phụ thuộc, với mức độ tin cậy cao (***).
-
-Các biến log(GDP), VACCINATION_RATE và VACCINATION_RATE có ảnh hưởng ở mức trung bình đến biến phụ thuộc.
-
-Biến BMI không có ảnh hưởng đáng kể trong mô hình này.
-
-#một cách loại bỏ tự tương quan
-```{r}
-library(nlme)
-panel_data$COUNTRY <- as.factor(panel_data$COUNTRY)
-panel_data$YEAR <- as.numeric(as.character(panel_data$YEAR))
-model_gls <- gls(LIFE.EXPECTANCY ~ INCOME.COMPOSITION.OF.RESOURCES + 
-                    ADULT.MORTALITY + SCHOOLING +HIV.AIDS + log(GDP) + VACCINATION_RATE, 
-                  data = panel_data, 
-                  correlation = corAR1(form = ~ YEAR | COUNTRY),
-                 weights = varIdent(form = ~ 1 | COUNTRY),
-                 method = "ML")
-summary(model_gls)
-```
-Đánh giá: Sau khi áp dụng model gls, ta kiểm tra kiểm định phương sai sai số thay đổi.
-  Với 
-  Variance function:
-  Structure: Different standard deviations per stratum
-  Formula: ~1 | COUNTRY 
-  ==> Nghĩa là: mô hình cho phép mỗi COUNTRY có phương sai sai số riêng như trong Parameter estimates
-  
-  Với Autocorrelation test: 
-  Hệ số Phi = 0.9947925 ==> Đây là hệ số tương quan giữa phần dư (residuals) tại thời điểm t và t–1 trong cùng một quốc gia
-  Việc sử dụng corAR1() nghĩa là ta giả định "Hãy giả sử có AR(1) trong sai số"
-  ==> với việc Phi gần về 1 cho ta thấy rằng, trước khi xử lý, các nước có sự tương quan về phần dư rất mạnh qua các năm. Hệ số không bị sai lệch vì tương quan chuỗi thời gian trong phần dư đã được đưa vào mô hình
 # đánh giá mô hình OLS
 ```{r}
 print("Chỉ số VIF của mô hình hồi quy stepwise: ")
 vif(final_model)
 ```
 Nhận xét:
-- các biến INCOME.COMPOSITION.OF.RESOURCES,ADULT.MORTALITY,SCHOOLING,BMI có chỉ số VIF <5 
+- các biến INCOME.COMPOSITION.OF.RESOURCES,ADULT.MORTALITY,SCHOOLING,BMI có chỉ số VIF <5.3
 không xảy ra hiện tương đa cộng tuyến giữa các biến 
 # kiểm tra giả định phân dư phân phối chuẩn và đồ thị
 ```{r}
@@ -361,12 +224,12 @@ Các điểm lệch khỏi đường thẳng chéo (đường chuẩn), đặc b
 *Shapiro-Wilk Test
 Kết quả:
 
-Giá trị W = 0.94865 (càng gần 1 càng chuẩn).
+Giá trị W = 0.98289 (càng gần 1 càng chuẩn).
 H₀ (Null Hypothesis): Phần dư có phân phối chuẩn.
 → Dữ liệu phù hợp với giả định của mô hình hồi quy tuyến tính cổ điển (OLS).
 H₁ (Alternative Hypothesis): Phần dư không có phân phối chuẩn.
 → Vi phạm giả định, cần điều chỉnh mô hình hoặc dữ liệu.
-p-value < 2.2e-16 → Bác bỏ giả thuyết H₀ (phần dư có phân phối chuẩn).
+p-value = 1.033e-12 → Bác bỏ giả thuyết H₀ (phần dư có phân phối chuẩn).
 
 Kết luận: Phần dư không tuân theo phân phối chuẩn.
 
@@ -405,13 +268,13 @@ H₁: Phương sai sai số thay đổi (Heteroskedasticity).
 
 Kết quả:
 
-BP = 320.9, p-value < 2.2e-16 → Bác bỏ H₀ → Có heteroskedasticity.
+BP = 193.99, p-value < 2.2e-16 → Bác bỏ H₀ → Có heteroskedasticity.
 
 White's Test:
 
 Kết quả:
 
-Test Statistic = 36.84, P-value = 0 → Bác bỏ H₀ → Xác nhận heteroskedasticity.
+Test Statistic = 73.76, P-value = 0 → Bác bỏ H₀ → Xác nhận heteroskedasticity.
 
 → Cả hai kiểm định đều khẳng định hiện tượng phương sai sai số thay đổi.
 *Biểu đồ Residuals vs Fitted
@@ -428,11 +291,258 @@ Kết luận: Hậu quả của Heteroskedasticity
   - Sai số chuẩn (Standard Errors) bị chệch → Kiểm định t/F và khoảng tin cậy không đáng tin cậy.
 
   - Dự đoán kém chính xác.
+
+# 5.3 Mô hình hồi quy Panel (PLM)
+
+- Mô hình PLM phù hợp với dữ liệu panel, kiểm soát các yếu tố không quan sát được theo quốc gia (COUNTRY) hoặc thời gian (YEAR).
+
+- Fixed effects (hiệu ứng cố định): Loại bỏ các yếu tố không đổi theo thời gian của mỗi quốc gia
+
+- Random effects (hiệu ứng ngẫu nhiên): Giả định các yếu tố không quan sát được là ngẫu nhiên và không tương quan với các biến độc lập.
+
+- Hausman test: Kiểm tra xem fixed effects hay random effects phù hợp hơn. Nếu p-value < 0.05, chọn fixed effects; nếu không, chọn random effects
+
+```{r}
+# Chuyển dữ liệu thành định dạng panel
+panel_data <- pdata.frame(train_data, index = c("COUNTRY", "YEAR"))
+
+# Xây dựng mô hình PLM với hiệu ứng cố định (fixed effects)
+plm_model_fe <- plm(LIFE.EXPECTANCY ~ INCOME.COMPOSITION.OF.RESOURCES + 
+                    ADULT.MORTALITY + SCHOOLING +HIV.AIDS + log(GDP) + VACCINATION_RATE, 
+                    data = panel_data, model = "within")
+
+# Xây dựng mô hình PLM với hiệu ứng ngẫu nhiên (random effects)
+plm_model_re <- plm(LIFE.EXPECTANCY ~ INCOME.COMPOSITION.OF.RESOURCES + 
+                    ADULT.MORTALITY + SCHOOLING +HIV.AIDS + log(GDP) + VACCINATION_RATE, 
+                    data = panel_data, model = "random")
+#in model plm
+stargazer(plm_model_fe,type ='text')
+stargazer(plm_model_re,type ='text')
+
+```
+Nhận xét:
+
+- Chỉ có 3 biến ở mô hình FE là INCOME.COMPOSITION.OF.RESOURCES, SCHOOLING, HIV.AIDS là có giá trị thống kê khi p-value < 0.05. Trong khi tất cả các biến ở mô hình RE đều có ý nghĩa thống kê
+
+- R-squared ở mô hình RE tốt hơn so với FE, chứng tỏ các biến độc lập ở RE giải thích tốt hơn cho biến phụ thuộc so với mô hình FE.
+
+- Tuy nhiên đối với loại mô hình plm, p-value có thể không thực sự tác động do cấu trúc đánh giá ước lượng của phương pháp plm. Và các biến không có ý nghĩa thống kê tốt cũng được sử dụng để tăng giá trị R-squared.
+
+#kiểm định mô hình plm
+```{r}
+
+# Kiểm tra Hausman test để chọn giữa fixed effects và random effects
+hausman_test <- phtest(plm_model_fe, plm_model_re)
+print(hausman_test)
+
+# Hiển thị kết quả mô hình được chọn (fixed effects nếu Hausman test có p-value < 0.05, ngược lại random effects)
+if (hausman_test$p.value < 0.05) {
+  print("chọn fe model")
+  summary(plm_model_fe)
+  plm_model <- plm_model_fe
+} else {
+  print("chọn re model")
+  summary(plm_model_re)
+  plm_model <- plm_model_re
+}
+```
+Nhận xét:
+H₀ (giả thuyết không): Mô hình hiệu ngẫu nhiên là phù hợp (RE thích hợp hơn),không có tương quan giữa sai số và biến độc lập
+H₁ (giả thuyết đối): Mô hình hiệu cố định là phù hợp (FE thích hợp hơn).
+
+- Nếu p-value của Hausman test < 0.05 (ví dụ: p = 0.01), mô hình fixed effects được chọn, cho thấy các yếu tố không quan sát được (như đặc điểm quốc gia) có tương quan với các biến độc lập.
+
+- Kết quả Hausman Test: chisq = 31.055, p-value = 2.474e-05 < 0.05, bác bỏ giả thuyết rằng random effects phù hợp. Do đó, mô hình fixed effects được chọn.
+
+#lựa chọn model giữa ols và plm
+```{r}
+pFtest(plm_model, final_model)
+```
+Ta thực hiện F-test để lựa chọn giữa lm và plm. với H0 là Không có hiệu ứng cá nhân → OLS là phù hợp, giả thuyết đối (H1): Có hiệu ứng cá nhân → nên dùng mô hình FE.
+==> kết quả p-value < 2.2e-16 cho kết quả bác bỏ H0 và sử dụng mô hình FE
+```{r}
+#kiểm định tư tương quan bậc 1 (Breusch-Godfrey) cho mô hình plm hiệu cố định (fixed effects)
+pbgtest(plm_model_fe, order = 1)
+#kiểm định tư tương quan bậc 1 (Breusch-Godfrey) không áp dụng mô hình plm hiệu ngẫu nhiên (random effects)
+pbgtest(plm_model_re, order = 1)
+```
+h0 không có sự tự tương quan
+h1 có sự tự tương quan
+Với p-value cực kỳ nhỏ 2.2e-16 (< mức ý nghĩa thông thường 0.05), chúng ta bác bỏ giả thuyết H0 (không có tự tương quan)
+
+Có bằng chứng mạnh mẽ về tự tương quan bậc 1 trong phần sai số đặc thù (idiosyncratic errors) của mô hình
+
+Có hiện tượng tự tương quan nhưng hiện tượng tự tương quan không là vấn đề đối với dữ 
+liệu bảng có số đơn vị chéo ( số lượng quốc gia) lớn hơn số năm quan sát.(hơn 160 quốc gia). Tuy nhiên ta thấy p-value gần như về 0 cho thấy mức độ tự tương quan khá tệ, ta cần giải quyết.
+```{r}
+#kiểm định robust standard errors cho mô hình PLM 
+coeftest(plm_model_fe, vcov = vcovHC(plm_model_fe, type = "HC0", cluster = "group"))
+#kiểm định robust standard errors không áp dụng cho mô hình PLM hiệu ngẫu nhiên
+```
+  Việc thực hiện robust standard errors sẽ giúp mô hình loại bỏ vấn đề xuất hiện phương sai sai số thay đổi. Khi này ta xét lại p-value
+h0:hệ số của biến đó không có ảnh hưởng đáng kể đến biến phụ thuộc, tức là không có mối quan hệ giữa biến độc lập và biến phụ thuộc
+h1:hệ số của biến đó có ảnh hưởng đáng kể đến biến phụ thuộc, tức là có mối quan hệ giữa biến độc lập và biến phụ thuộc.
+p-value <0.05 bác bỏ h0
+p-value < 0.001: Mức độ ý nghĩa rất cao, thường được ký hiệu bằng "***".
+
+0.001 ≤ p-value < 0.01: Mức độ ý nghĩa cao, ký hiệu bằng "**".
+
+0.01 ≤ p-value < 0.05: Mức độ ý nghĩa trung bình, ký hiệu bằng "*".
+
+0.05 ≤ p-value < 0.1: Mức độ ý nghĩa yếu, ký hiệu bằng ".".
+
+p-value ≥ 0.1: Không có ý nghĩa thống kê, thường không ký hiệu hoặc không được xem xét là có ảnh hưởng.
+Nhận xét:
+
+INCOME.COMPOSITION.OF.RESOURCES: Hệ số này có giá trị ước lượng là 8.4862765  với giá trị t là 1.7433  và p-value là 0.08149 . Vì p-value lớn hơn 0.001, ta có thể kết luận rằng biến này không ảnh hưởng nhiều thống kê đáng kể đến biến phụ thuộc.
+
+ADULT.MORTALITY: Hệ số này có giá trị ước lượng là -0.0010851 với giá trị t là -0.9679  và p-value là 0.33324 P-value lớn hơn 0.01, cho thấy biến này không đang tin cậy không ảnh hưởng đến biến phụ thuộc
+
+SCHOOLING: Hệ số này có giá trị ước lượng là 1.0885928 với giá trị t là 5.1686 và p-value là 2.684e-07. P-value nhỏ hơn 0.01, chứng tỏ biến này có ảnh hưởng đáng kể và tác động tích cực đến biến phụ thuộc.
+
+HIV.AIDS Hệ số này có giá trị ước lượng là -0.4372510 với giá trị t là -8.5681 và p-value là 2.2e-16. Vì p-value nhỏ hơn 0.001, ta có thể kết luận rằng biến này có ảnh hưởng thống kê tiêu cực đáng kể đến biến phụ thuộc, với mức độ tin cậy cao.
+
+Các biến log(GDP), VACCINATION_RATE và VACCINATION_RATE có ảnh hưởng ở mức trung bình và thấp đến biến phụ thuộc.
+  Tuy nhiên ta không nên loại bỏ các biến không có ý nghĩa thống kê nhằm giữ cho giá trị R-squared ở mức hợp lý
+
+#một cách loại bỏ tự tương quan
+```{r}
+library(nlme)
+panel_data$COUNTRY <- as.factor(panel_data$COUNTRY)
+panel_data$YEAR <- as.numeric(as.character(panel_data$YEAR))
+model_gls <- gls(LIFE.EXPECTANCY ~ INCOME.COMPOSITION.OF.RESOURCES + 
+                    ADULT.MORTALITY + SCHOOLING +HIV.AIDS + log(GDP) + VACCINATION_RATE, 
+                  data = panel_data, 
+                  correlation = corAR1(form = ~ YEAR | COUNTRY),
+                 weights = varIdent(form = ~ 1 | COUNTRY),
+                 method = "ML")
+summary(model_gls)
+```
+Đánh giá: Sau khi áp dụng model gls, ta kiểm tra kiểm định phương sai sai số thay đổi.
+  Với 
+  Variance function:
+  Structure: Different standard deviations per stratum
+  Formula: ~1 | COUNTRY 
+  ==> Nghĩa là: mô hình cho phép mỗi COUNTRY có phương sai sai số riêng như trong Parameter estimates
+  
+  Với Autocorrelation test: 
+  Hệ số Phi = 0.989282 ==> Đây là hệ số tương quan giữa phần dư (residuals) tại thời điểm t và t–1 trong cùng một quốc gia
+  Việc sử dụng corAR1() nghĩa là ta giả định "Hãy giả sử có AR(1) trong sai số"
+  ==> với việc Phi gần về 1 cho ta thấy rằng, trước khi xử lý, các nước có sự tương quan về phần dư rất mạnh qua các năm. Hệ số không bị sai lệch vì tương quan chuỗi thời gian trong phần dư đã được đưa vào mô hình
+
   
   
-### Tóm lại:Thông qua việc kiểm tra giả định các model cho hình model hồi quy tuyến tính plm fixed effects cho ra độ chính xác và tính ổn định cao Kiểm soát được các yếu tố không quan sát, Phù hợp với dữ liệu có N lớn, T nhỏ, Giảm thiểu bias do tự tương quan, rất phù hợp với dạng dữ liệu kiểu panel
+### Tóm lại:Thông qua việc kiểm tra giả định các model cho hình model hồi quy tuyến tính plm fixed effects cho ra độ chính xác và tính ổn định cao hơn mô hình plm FE. Tuy nhiên model gặp phải các khuyết tật về phương sai sai số và tự tương quan bậc 1 khá nặng nên sử dụng phương pháp gls để khắc phục 2 khuyết tật trên. Model Kiểm soát được các yếu tố không quan sát, Phù hợp với dữ liệu có N lớn, T nhỏ, Giảm thiểu bias do tự tương quan, rất phù hợp với dạng dữ liệu kiểu panel.
 
 
                       ----- Kiểm thử và áp dụng model -----
+#6 Kiểm thử model trên test_data
+```{r}
+panel_data_test <- pdata.frame(test_data, index = c("COUNTRY", "YEAR"))
+panel_data_test$COUNTRY <- as.factor(panel_data_test$COUNTRY)
+panel_data_test$YEAR <- as.numeric(as.character(panel_data_test$YEAR))
+pred_test <- predict(model_gls, newdata = panel_data_test)
 
+# So sánh với giá trị thực tế
+actual_test <- test_data$LIFE.EXPECTANCY
+# Sai số bình phương trung bình (RMSE)
+rmse <- sqrt(mean((actual_test - pred_test)^2))
 
+# Sai số tuyệt đối trung bình (MAE)
+mae <- mean(abs(actual_test - pred_test))
+
+# Hệ số xác định (R^2)
+sst <- sum((actual_test - mean(actual_test))^2)
+sse <- sum((actual_test - pred_test)^2)
+r_squared <- 1 - sse/sst
+
+# In kết quả
+cat("RMSE:", round(rmse, 3), "\n")
+cat("MAE:", round(mae, 3), "\n")
+cat("R-squared:", round(r_squared, 3), "\n")
+
+library(ggplot2)
+ggplot(data.frame(Actual = actual_test, Predicted = pred_test), aes(x = Actual, y = Predicted)) +
+  geom_point(alpha = 0.6) +
+  geom_abline(slope = 1, intercept = 0, color = "red") +
+  labs(title = "Thực tế vs. Dự đoán (GLS Model)", x = "Giá trị thực tế", y = "Giá trị dự đoán") +
+  theme_minimal()
+```
+Đánh giá mô hình:
+1. RMSE = 5.62 và MAE = 4.226
+  Cả hai giá trị cho thấy sai số dự đoán trung bình ở mức ổn, đặc biệt với đặc thù của tuổi thọ có biên độ giá trị dài.
+
+  Về dự đoán, sai số khoảng 4-5 năm là đáng kể, nhưng không bất thường nếu dữ liệu có biến động lớn giữa các quốc gia.
+
+2. R-squared = 0.646
+  Mô hình giải thích được khoảng 64.6% phương sai trong tập kiểm tra.
+
+  ==> Mức trung bình, nhưng nếu dữ liệu panel này có nhiều yếu tố ngẫu nhiên, tương tác phi tuyến tính, thì tựu chung là chấp nhận được. Một phần do dữ liệu thu được không ổn định tạo nên vấn đề.
+
+#7 Phân tích sự ảnh hưởng của các yếu tố đến tuổi thọ
+	
+                      Value       Std.Error     t-value             p-value
+<chr>
+(Intercept)	        53.13199	    0.9599798	    55.34699	          0.0000
+INCOME.COMPOSITION.
+OF.RESOURCES	      26.95028	    1.6996251	    15.85660	          0.0000
+
+ADULT.MORTALITY	    -0.00022	    0.0002038	    -1.07921	          0.2807
+SCHOOLING	          -0.01398	    0.0449518	    -0.31107	          0.7558
+HIV.AIDS	          -0.41209	    0.0380613	    -10.82702	          0.0000
+log(GDP)	          0.01000	      0.0062955	    1.58780	            0.1125
+VACCINATION_RATE	  0.00282	      0.0023220	    1.21273	            0.2254
+
+INCOME.COMPOSITION.OF.RESOURCES: Hệ số là dương và có p-value < 0.05, điều này có nghĩa là tài sản và cấu trúc thu nhập có mối quan hệ thuận với tuổi thọ. Khi INCOME.COMPOSITION.OF.RESOURCES tăng, tuổi thọ dự đoán sẽ tăng.
+
+ADULT.MORTALITY: Hệ số âm, điều này có thể chỉ ra rằng tử vong ở người trưởng thành làm giảm tuổi thọ, vì tỷ lệ tử vong cao đồng nghĩa với tuổi thọ thấp. Nhưng vì p-value lớn hơn 0.05 ảnh hưởng đến mức độ thống kê của biến
+
+SCHOOLING: Một hệ số âm có thể chỉ ra rằng trình độ học vấn cao có ảnh hưởng tích cực đến tuổi thọ, vì giáo dục thường liên quan đến lối sống lành mạnh và chăm sóc sức khỏe tốt hơn. Điều này đi ngược với thực tế cho thấy dataset có vấn đề và giá trị này không có giá trị dữ đoán
+
+HIV.AIDS: Hệ số âm cho thấy sự gia tăng tỷ lệ nhiễm HIV/AIDS có thể giảm tuổi thọ.
+
+log(GDP): Hệ số là dương và có ý nghĩa thống kê, GDP có thể chỉ ra mối quan hệ giữa sự phát triển kinh tế và tuổi thọ, vì nền kinh tế mạnh có thể cung cấp các điều kiện sống và chăm sóc sức khỏe tốt hơn. Tuy nhiên p-value cao khiến mức độ thống kê của biến này rất thấp
+
+VACCINATION_RATE: Hệ số dương sẽ cho thấy rằng tỷ lệ tiêm chủng cao có ảnh hưởng tích cực đến tuổi thọ, vì tiêm chủng giúp giảm thiểu các bệnh truyền nhiễm và cải thiện sức khỏe cộng đồng. Tuy nhiên p-value cao khiến mức độ thống kê của biến này rất thấp
+
+Với chỉ số R-squared và R-fix-Squared ở mô hình plm kết hợp với chỉ số thống kê p-value, ta  thấy biến INCOME.COMPOSITION.OF.RESOURCES và HIV.AIDS ảnh hưởng rất nhiều và giải thích rõ cho sự biến thiên của tuổi thọ
+
+1) Ví dụ phân tích ảnh hưởng của INCOME.COMPOSITION.OF.RESOURCES và HIV.AIDS đến tuổi thọ ở Albania
+```{r}
+alba_data <- data_cleaned %>% filter(COUNTRY == "Albania")
+alba_data$life_expectancy_predicted <- 
+  53.13199 + 
+  26.95028 * alba_data$INCOME.COMPOSITION.OF.RESOURCES + 
+  (-0.41209) * alba_data$HIV.AIDS
+ggplot(alba_data, aes(x = INCOME.COMPOSITION.OF.RESOURCES, y = LIFE.EXPECTANCY)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE, color = "blue") +
+  labs(title = "Ảnh hưởng của Income Composition tới tuổi thọ - Albania")
+
+ggplot(alba_data, aes(x = HIV.AIDS, y = LIFE.EXPECTANCY)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE, color = "red") +
+  labs(title = "Ảnh hưởng của HIV/AIDS tới tuổi thọ - Albania")
+```
+  Đối với biến INCOME.COMPOSITION.OF.RESOURCES, chỉ số phát triển con người liên quan đến thu nhập khi tăng thì tuổi thọ tăng. Điều này phù hợp với ý nghĩa thực tế. Đường hồi quy hướng lên trên cho ta thấy đây là mức ảnh hưởng dương. Các giá trị dự đoán nằm không quá xa đường hồi quy cho ta thấy mức độ chính xác của dự đoán là hợp lý
+  Đối với biến HIV.AIDS, dữ liệu tỉ lệ nhiễm HIV của Albania suốt 15 năm đều là 0.1 tạo nên đường hồi quy thẳng đứng và các giá trị dự đoán qua từng năm là như nhau
+
+2) Ví dụ phân tích ảnh hưởng của ADULT.MORTALITY và VACCINATION_RATE đến tuổi thọ ở Croatia
+```{r}
+cro_data <- data_cleaned %>% filter(COUNTRY == "Croatia")
+cro_data$life_expectancy_predicted <- 
+  53.13199 + 
+  -0.00022 * cro_data$ADULT.MORTALITY + 
+  0.00282 * cro_data$ADULT.MORTALITY
+ggplot(cro_data, aes(x = ADULT.MORTALITY, y = LIFE.EXPECTANCY)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE, color = "blue") +
+  labs(title = "Ảnh hưởng của Income ADULT.MORTALITY tới tuổi thọ - Croatia")
+
+ggplot(cro_data, aes(x = VACCINATION_RATE, y = LIFE.EXPECTANCY)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE, color = "red") +
+  labs(title = "Ảnh hưởng của VACCINATION_RATE tới tuổi thọ - Croatia")
+```
+  Đối với biến ADULT.MORTALITY là một biến có ý nghĩa thống kê thấp, số lượng người trưởng thành chết/1000 tăng thì tuổi thọ giảm. Điều này phù hợp với ý nghĩa thực tiễn. Đường hồi quy hướng xuống dưới cho ta thấy đây là mức ảnh hưởng âm. Các giá trị dự đoán nằm khá quá xa đường hồi quy ở đoạn 125 cho ta thấy mức độ chính xác của dự đoán là phù hợp tuy chưa giải thích được trọn vẹn biến. Tuy nhiên vì biến này có p-value lớn hơn 0.05 nên mức độ ảnh hưởng của biến này lên tuổi thọ thấp, dẫn đến kết quả không đáng tin
+  Đối với biến VACCINATION_RATE, dữ liệu tỉ lệ tiêm chủng của Croatia dao động từ 94 đến 97. Tuy nhiên nhìn vào đồ thị ta thấy với 1 mức VACCINATION_RATE, mô hình dự đoán ra nhiều tuổi thọ khác nhau qua các năm. Điều đó cho thấy biến VACCINATION_RATE chưa ảnh hưởng đến tuổi thọ hoặc thiếu đi biến khác giải thích cho tuổi thọ, có thể là tỉ lệ tiêm phòng cụ thể ở các bệnh như sởi, lao. Cộng thêm đây là biến không có ảnh hưởng nhiều đến tuổi thọ, dẫn đến kết quả không đáng tin.

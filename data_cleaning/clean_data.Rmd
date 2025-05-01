@@ -82,13 +82,24 @@ overview <- data.frame(
 knitr::kable(overview, caption = "Tổng quan từng cột trong dữ liệu")
 ```
 
+# Xử lý dữ liệu thiếu (NA) theo từng quốc gia
+
+```{r}
+data_grouped <- data %>%
+  group_by(Country) %>%
+  mutate(across(where(is.numeric), ~ ifelse(is.na(.), median(., na.rm = TRUE), .))) %>%
+  ungroup()
+```
+
 # Chuẩn hóa dataframe
 -Chuẩn hóa tên các cột cho đồng nhất (viết hoa toàn bộ)
 -Chuẩn hóa cột country bằng cách thay " " -> "_" giữa tên quốc gia
--Chuyển đổi cột STATUS thành 2 cột biến giả DEVELOPED và DEVELOPING tạo điều kiện thuận lợi cho việc chạy mô hình hồi quy (Vì mô hình hồi quy không hiểu kiểu dữ liệu chuỗi ở cột STATUS)
--Loại bỏ những cột không ảnh hưởng đến yếu tố phân tích 
+-Chuyển đổi cột STATUS thành "0" và "1" để thuận lợi cho việc chạy mô hình
+-Nhóm các cột có ý nghĩa giống nhau thành 1 cột mới đồng thời loại bỏ cột gốc
 
 ```{r}
+data <- data_grouped
+
 # Chuẩn hóa tên các cột cho đồng nhất
 colnames(data) <- toupper(colnames(data))
 
@@ -99,27 +110,29 @@ data <- data %>%
 data$STATUS <- ifelse(data$STATUS == "Developed", "1", "0")
 data$STATUS <- as.numeric(data$STATUS)
 
-# Loại bỏ những cột không ảnh hưởng trực tiếp, không có tác động nhiều đến yếu tố cần phân tích (yếu tố tuổi thọ trung bình)
-data_delete <- data #%>% 
- # select(-c(INFANT.DEATHS, UNDER.FIVE.DEATHS, HIV.AIDS))
+# Gộp các cột có ý nghĩa giống nhau lại thành 1
+data <- data %>%
+  mutate(THINNESS = rowMeans(
+    select(., THINNESS..1.19.YEARS, THINNESS.5.9.YEARS),
+    na.rm = TRUE
+  ))
+data <- data %>%
+  mutate(VACCINATION_RATE = rowMeans(
+    select(., HEPATITIS.B, POLIO, DIPHTHERIA),
+    na.rm = TRUE
+  )) %>%
+# Loại bỏ các cột gốc sau khi gộp
+  select(-THINNESS..1.19.YEARS, -THINNESS.5.9.YEARS, -HEPATITIS.B, -POLIO, -DIPHTHERIA)
+
 
 # Xem tên các cột sau chuẩn hóa
-colnames(data_delete)
-```
-
-# Xử lý dữ liệu thiếu (NA) theo từng quốc gia
-
-```{r}
-data_grouped <- data_delete %>%
-  group_by(COUNTRY) %>%
-  mutate(across(where(is.numeric), ~ ifelse(is.na(.), median(.x, na.rm = TRUE), .x))) %>%
-  ungroup()
+colnames(data)
 ```
 
 # Loại bỏ các dòng có dữ liệu thiếu (NA) còn lại
 
 ```{r}
-data_cleaned <- data_grouped %>%
+data_cleaned <- data %>%
   drop_na()
 ```
 

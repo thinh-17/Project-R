@@ -294,23 +294,28 @@ Biến BMI không có ảnh hưởng đáng kể trong mô hình này.
 
 #một cách loại bỏ tự tương quan
 ```{r}
-model_gmm <- pgmm(LIFE.EXPECTANCY ~ lag(LIFE.EXPECTANCY, 1) + INCOME.COMPOSITION.OF.RESOURCES + 
-                    ADULT.MORTALITY + SCHOOLING + HIV.AIDS + log(GDP) | 
-                    lag(LIFE.EXPECTANCY, 2:99), 
+library(nlme)
+panel_data$COUNTRY <- as.factor(panel_data$COUNTRY)
+panel_data$YEAR <- as.numeric(as.character(panel_data$YEAR))
+model_gls <- gls(LIFE.EXPECTANCY ~ INCOME.COMPOSITION.OF.RESOURCES + 
+                    ADULT.MORTALITY + SCHOOLING +HIV.AIDS + log(GDP) + VACCINATION_RATE, 
                   data = panel_data, 
-                  effect = "individual", 
-                  model = "twosteps", 
-                  index = c("COUNTRY", "YEAR"))
-summary(model_gmm)
+                  correlation = corAR1(form = ~ YEAR | COUNTRY),
+                 weights = varIdent(form = ~ 1 | COUNTRY),
+                 method = "ML")
+summary(model_gls)
 ```
-Đánh giá: Sau khi áp dụng model pgmm, ta kiểm tra kiểm định phương sai sai số thay đổi.
-  với Sargan test: chisq(104) = 73.04399 (p-value = 0.99083), ta có p-value lớn hơn 0.05, H0 là không có phương sai sai số thay đổi ==> ta không bác bỏ H0 --> không có hiện tượng phương sai sai số thay đổi.
-  Với Autocorrelation test: ta có H0 là không có tự tương quan bậc k
-  Bậc kiểm định	      P-value	                            Diễn giải
-AR(1)	              3.5e-06 (rất nhỏ)	      Bác bỏ H₀ → có tự tương quan bậc 1 (điều này là                                            bình thường & mong đợi trong mô hình GMM)
-
-AR(2)	              0.0965 (lớn hơn 0.05)	  Không bác bỏ H₀ → không có tự tương quan bậc 2                                               ⇒ mô hình hợp lệ
-Tự tương quan bậc 1 là bình thường (do sai phân), quan trọng là không có AR(2) — đây là điều kiện then chốt để GMM hợp lệ
+Đánh giá: Sau khi áp dụng model gls, ta kiểm tra kiểm định phương sai sai số thay đổi.
+  Với 
+  Variance function:
+  Structure: Different standard deviations per stratum
+  Formula: ~1 | COUNTRY 
+  ==> Nghĩa là: mô hình cho phép mỗi COUNTRY có phương sai sai số riêng như trong Parameter estimates
+  
+  Với Autocorrelation test: 
+  Hệ số Phi = 0.9947925 ==> Đây là hệ số tương quan giữa phần dư (residuals) tại thời điểm t và t–1 trong cùng một quốc gia
+  Việc sử dụng corAR1() nghĩa là ta giả định "Hãy giả sử có AR(1) trong sai số"
+  ==> với việc Phi gần về 1 cho ta thấy rằng, trước khi xử lý, các nước có sự tương quan về phần dư rất mạnh qua các năm. Hệ số không bị sai lệch vì tương quan chuỗi thời gian trong phần dư đã được đưa vào mô hình
 # đánh giá mô hình OLS
 ```{r}
 print("Chỉ số VIF của mô hình hồi quy stepwise: ")
@@ -426,4 +431,8 @@ Kết luận: Hậu quả của Heteroskedasticity
   
   
 ### Tóm lại:Thông qua việc kiểm tra giả định các model cho hình model hồi quy tuyến tính plm fixed effects cho ra độ chính xác và tính ổn định cao Kiểm soát được các yếu tố không quan sát, Phù hợp với dữ liệu có N lớn, T nhỏ, Giảm thiểu bias do tự tương quan, rất phù hợp với dạng dữ liệu kiểu panel
+
+
+                      ----- Kiểm thử và áp dụng model -----
+
 

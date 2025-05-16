@@ -14,6 +14,7 @@ knitr::opts_chunk$set(echo = TRUE)
 library(dplyr)
 library(tidyr)
 library(stringr)
+library(ggplot2)
 ```
 
 # Đọc dữ liệu
@@ -80,6 +81,35 @@ overview <- data.frame(
 )
 
 knitr::kable(overview, caption = "Tổng quan từng cột trong dữ liệu")
+
+ggplot(data, aes(x = GDP)) +
+  geom_histogram(binwidth = 1000, fill = "skyblue", color = "black") +
+  labs(title = "Biểu đồ GDP",
+       x = "GDP (USD/người)",
+       y = "Số lượng quan sát") +
+  theme_minimal()
+
+ggplot(data, aes(x = Schooling)) +
+  geom_histogram(binwidth = 1, fill = "salmon", color = "black") +
+  labs(title = "Biểu đồ Schooling",
+       x = "Số năm đi học",
+       y = "Số lượng quan sát") +
+  theme_minimal()
+
+# Tính giá trị trung bình Life Expectancy theo từng năm và Status
+life_exp_by_year_status <- data %>%
+  group_by(Year, Status) %>%
+  summarise(Life.expectancy = mean(Life.expectancy, na.rm = TRUE), .groups = "drop")
+
+# Vẽ biểu đồ đường
+ggplot(life_exp_by_year_status, aes(x = Year, y = Life.expectancy, color = as.factor(Status))) +
+  geom_line(size = 1.2) +
+  geom_point() +
+  labs(title = "Tuổi thọ trung bình theo năm và theo Status",
+       x = "Năm",
+       y = "Tuổi thọ trung bình (Life Expectancy)",
+       color = "Tình trạng phát triển (Status)") +
+  theme_minimal()
 ```
 
 # Xử lý dữ liệu thiếu (NA) theo từng quốc gia

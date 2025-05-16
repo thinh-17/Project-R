@@ -62,9 +62,6 @@ cat("Số quốc gia trong tập kiểm tra:", length(unique(test_data$COUNTRY))
 
 - Các biến được chọn dựa trên lý thuyết và ma trận tương quan để đảm bảo chúng có mối quan hệ tuyến tính đáng kể với LIFE.EXPECTANCY.
 
-- Ma trận tương quan hiển thị hệ số tương quan Pearson (r) giữa các biến. Giá trị |r| > 0.3 được chọn làm ngưỡng để loại bỏ các biến có ảnh hưởng yếu.
-
-- ggcorrplot vẽ ma trận tương quan với nhãn giá trị, giúp dễ dàng nhận diện các biến có tương quan mạnh.
 
 ```{r}
 # Chọn các biến dựa trên cơ sở lý thuyết
@@ -185,7 +182,7 @@ print("Chỉ số VIF của mô hình hồi quy stepwise: ")
 vif(final_model)
 ```
 Nhận xét:
-- các biến INCOME.COMPOSITION.OF.RESOURCES,ADULT.MORTALITY,SCHOOLING,BMI có chỉ số VIF <5.3
+- các biến INCOME.COMPOSITION.OF.RESOURCES,ADULT.MORTALITY,SCHOOLING,BMI có chỉ số VIF <5.2
 không xảy ra hiện tương đa cộng tuyến giữa các biến 
 # kiểm tra giả định phân dư phân phối chuẩn và đồ thị
 ```{r}
@@ -212,7 +209,7 @@ Nhận xét:
 
 Phần dư có xu hướng phân bố không đối xứng (asymmetric) với một số giá trị nằm xa trung tâm (có thể là outliers).
 
-Phần dư tập trung nhiều ở khoảng giữa nhưng có đuôi dài về phía âm (giá trị -20 xuất hiện).
+Phần dư tập trung nhiều ở khoảng giữa.
 
 *Normal Q-Q Plot
 Nhận xét:
@@ -223,13 +220,11 @@ Các điểm lệch khỏi đường thẳng chéo (đường chuẩn), đặc b
 
 *Shapiro-Wilk Test
 Kết quả:
-
-Giá trị W = 0.98289 (càng gần 1 càng chuẩn).
 H₀ (Null Hypothesis): Phần dư có phân phối chuẩn.
 → Dữ liệu phù hợp với giả định của mô hình hồi quy tuyến tính cổ điển (OLS).
 H₁ (Alternative Hypothesis): Phần dư không có phân phối chuẩn.
 → Vi phạm giả định, cần điều chỉnh mô hình hoặc dữ liệu.
-p-value = 1.033e-12 → Bác bỏ giả thuyết H₀ (phần dư có phân phối chuẩn).
+p-value < 1.033e-12 → Bác bỏ giả thuyết H₀ (phần dư có phân phối chuẩn).
 
 Kết luận: Phần dư không tuân theo phân phối chuẩn.
 
@@ -375,9 +370,9 @@ Có bằng chứng mạnh mẽ về tự tương quan bậc 1 trong phần sai s
 Có hiện tượng tự tương quan nhưng hiện tượng tự tương quan không là vấn đề đối với dữ 
 liệu bảng có số đơn vị chéo ( số lượng quốc gia) lớn hơn số năm quan sát.(hơn 160 quốc gia). Tuy nhiên ta thấy p-value gần như về 0 cho thấy mức độ tự tương quan khá tệ, ta cần giải quyết.
 ```{r}
-#kiểm định robust standard errors cho mô hình PLM 
+#kiểm định robust standard errors cho mô hình PLM hiệu ứng cố định
 coeftest(plm_model_fe, vcov = vcovHC(plm_model_fe, type = "HC0", cluster = "group"))
-#kiểm định robust standard errors không áp dụng cho mô hình PLM hiệu ngẫu nhiên
+#kiểm định robust standard errors không áp dụng cho mô hình PLM hiệu ứng ngẫu nhiên
 ```
   Việc thực hiện robust standard errors sẽ giúp mô hình loại bỏ vấn đề xuất hiện phương sai sai số thay đổi. Khi này ta xét lại p-value
 h0:hệ số của biến đó không có ảnh hưởng đáng kể đến biến phụ thuộc, tức là không có mối quan hệ giữa biến độc lập và biến phụ thuộc
@@ -402,7 +397,7 @@ SCHOOLING: Hệ số này có giá trị ước lượng là 1.0885928 với gi�
 
 HIV.AIDS Hệ số này có giá trị ước lượng là -0.4372510 với giá trị t là -8.5681 và p-value là 2.2e-16. Vì p-value nhỏ hơn 0.001, ta có thể kết luận rằng biến này có ảnh hưởng thống kê tiêu cực đáng kể đến biến phụ thuộc, với mức độ tin cậy cao.
 
-Các biến log(GDP), VACCINATION_RATE và VACCINATION_RATE có ảnh hưởng ở mức trung bình và thấp đến biến phụ thuộc.
+Các biến log(GDP), VACCINATION_RATE có ảnh hưởng ở mức trung bình và thấp đến biến phụ thuộc.
   Tuy nhiên ta không nên loại bỏ các biến không có ý nghĩa thống kê nhằm giữ cho giá trị R-squared ở mức hợp lý
 
 #một cách loại bỏ tự tương quan
@@ -464,8 +459,12 @@ cat("R-squared:", round(r_squared, 3), "\n")
 library(ggplot2)
 ggplot(data.frame(Actual = actual_test, Predicted = pred_test), aes(x = Actual, y = Predicted)) +
   geom_point(alpha = 0.6) +
-  geom_abline(slope = 1, intercept = 0, color = "red") +
-  labs(title = "Thực tế vs. Dự đoán (GLS Model)", x = "Giá trị thực tế", y = "Giá trị dự đoán") +
+  geom_abline(slope = 1, intercept = 0, color = "red", linetype = "dashed") +  # Đường dự đoán hoàn hảo
+  geom_smooth(method = "lm", se = FALSE, color = "blue") +  # Đường hồi quy thực tế
+  labs(title = "Thực tế vs. Dự đoán (GLS Model)",
+       subtitle = "Đường đỏ: dự đoán hoàn hảo | Đường xanh: hồi quy thực tế",
+       x = "Giá trị thực tế",
+       y = "Giá trị dự đoán") +
   theme_minimal()
 ```
 Đánh giá mô hình:
@@ -513,7 +512,7 @@ alba_data <- data_cleaned %>% filter(COUNTRY == "Albania")
 alba_data$life_expectancy_predicted <- 
   53.13199 + 
   26.95028 * alba_data$INCOME.COMPOSITION.OF.RESOURCES + 
-  (-0.41209) * alba_data$HIV.AIDS
+  (-0.41209) * alba_data$HIV.AIDS + -0.00022 * alba_data$ADULT.MORTALITY + 0.00282 * alba_data$VACCINATION_RATE + -0.01398*alba_data$SCHOOLING + 0.01000*alba_data$GDP
 ggplot(alba_data, aes(x = INCOME.COMPOSITION.OF.RESOURCES, y = LIFE.EXPECTANCY)) +
   geom_point() +
   geom_smooth(method = "lm", se = FALSE, color = "blue") +
@@ -530,10 +529,9 @@ ggplot(alba_data, aes(x = HIV.AIDS, y = LIFE.EXPECTANCY)) +
 2) Ví dụ phân tích ảnh hưởng của ADULT.MORTALITY và VACCINATION_RATE đến tuổi thọ ở Croatia
 ```{r}
 cro_data <- data_cleaned %>% filter(COUNTRY == "Croatia")
-cro_data$life_expectancy_predicted <- 
   53.13199 + 
-  -0.00022 * cro_data$ADULT.MORTALITY + 
-  0.00282 * cro_data$ADULT.MORTALITY
+  26.95028 * cro_data$INCOME.COMPOSITION.OF.RESOURCES + 
+  (-0.41209) * cro_data$HIV.AIDS + -0.00022 * cro_data$ADULT.MORTALITY + 0.00282 * cro_data$VACCINATION_RATE + -0.01398*cro_data$SCHOOLING + 0.01000*cro_data$GDP
 ggplot(cro_data, aes(x = ADULT.MORTALITY, y = LIFE.EXPECTANCY)) +
   geom_point() +
   geom_smooth(method = "lm", se = FALSE, color = "blue") +
@@ -546,3 +544,4 @@ ggplot(cro_data, aes(x = VACCINATION_RATE, y = LIFE.EXPECTANCY)) +
 ```
   Đối với biến ADULT.MORTALITY là một biến có ý nghĩa thống kê thấp, số lượng người trưởng thành chết/1000 tăng thì tuổi thọ giảm. Điều này phù hợp với ý nghĩa thực tiễn. Đường hồi quy hướng xuống dưới cho ta thấy đây là mức ảnh hưởng âm. Các giá trị dự đoán nằm khá quá xa đường hồi quy ở đoạn 125 cho ta thấy mức độ chính xác của dự đoán là phù hợp tuy chưa giải thích được trọn vẹn biến. Tuy nhiên vì biến này có p-value lớn hơn 0.05 nên mức độ ảnh hưởng của biến này lên tuổi thọ thấp, dẫn đến kết quả không đáng tin
   Đối với biến VACCINATION_RATE, dữ liệu tỉ lệ tiêm chủng của Croatia dao động từ 94 đến 97. Tuy nhiên nhìn vào đồ thị ta thấy với 1 mức VACCINATION_RATE, mô hình dự đoán ra nhiều tuổi thọ khác nhau qua các năm. Điều đó cho thấy biến VACCINATION_RATE chưa ảnh hưởng đến tuổi thọ hoặc thiếu đi biến khác giải thích cho tuổi thọ, có thể là tỉ lệ tiêm phòng cụ thể ở các bệnh như sởi, lao. Cộng thêm đây là biến không có ảnh hưởng nhiều đến tuổi thọ, dẫn đến kết quả không đáng tin.
+
